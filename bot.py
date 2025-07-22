@@ -22,7 +22,7 @@ async def reminder_loop():
     await client.wait_until_ready()
 
     while not client.is_closed():
-        now = datetime.utcnow()
+        now = datetime.today()
         for task in tasks[:]:
             if now >= task['due']:
                 try:
@@ -30,6 +30,17 @@ async def reminder_loop():
                 except discord.Forbidden:
                     print(f"Could not send message in this channel.")
                 tasks.remove(task)
+            if now.date() in task['reminder_dates']:
+                try:
+                    await task['channel'].send(f"<@{task['user_id']}> ⏰ Reminder: Your task '{task['task_name']}' is due on {task['due'].strftime('%A, %b %d, %Y')}!")
+                    task['reminder_dates'].remove(now.date())
+                except discord.Forbidden:
+                    print("Could not send message in this channel.")
+        
+                    
+            
+            
+            
         await asyncio.sleep(10)
 
 
@@ -105,8 +116,9 @@ async def on_message(message):
             for i, task in enumerate(tasks):
                 if task['task_name'] == content:
                     tasks.remove(tasks[i])
-                    await message.channel.send(f"{content} has been successfully removed from your schedule")
-
+                    await message.channel.send(f"✅ {content} has been successfully removed from your schedule")
+                else:
+                    await message.channel.send(f"There is no task named {content} coming up")
         except Exception:
             await message.channel.send("Error has occured")
 
