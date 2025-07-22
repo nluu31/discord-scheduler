@@ -67,7 +67,8 @@ async def on_message(message):
                 'user_id': message.author.id,
                 'task_name': task_name,
                 'due': due_date,
-                'channel' : message.channel
+                'channel' : message.channel,
+                'reminder_dates' : reminder_dates
             })
             print(tasks)
 
@@ -82,6 +83,21 @@ async def on_message(message):
 
         except Exception:
             await message.channel.send("Error: Use format: `!schedule TaskName | jul 31 2025 | 3`")
+    
+    if message.content == "!upcoming":
+        try: 
+            if len(tasks) == 0:
+                await message.channel.send("You have no upcoming tasks!")
+            else:
+                sorted_by_date = sorted(tasks, key = lambda x: x['due'])
+                output = "Your Upcoming Tasks are: \n"
+                for task in sorted_by_date:
+                    delta = (task['due'].date() - datetime.today().date()).days
+                    output += f"🌌 **{task['task_name']}** due on **{task['due'].strftime('%A, %b %d, %Y')}** due in {delta} day(s)\n"
+                await message.channel.send(output)
+                
+        except Exception:
+            await message.channel.send("Error has occured")
 
 
 client.run(TOKEN)
