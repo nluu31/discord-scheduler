@@ -99,6 +99,17 @@ async def on_message(message):
         except Exception:
             await message.channel.send("Error has occured")
 
+    if message.content.startswith("!remove"):
+        try:
+            content = message.content[7:].strip()
+            for i, task in enumerate(tasks):
+                if task['task_name'] == content:
+                    tasks.remove(tasks[i])
+                    await message.channel.send(f"{content} has been successfully removed from your schedule")
+
+        except Exception:
+            await message.channel.send("Error has occured")
+
 
 client.run(TOKEN)
 
