@@ -144,8 +144,8 @@ async def reminder_loop():
             WHERE reminder_dates.reminder_date = ?
         """, (today_str,))
         reminders = cursor.fetchall()
-        conn.close()
 
+        # Remove each reminder_date after notifying the user
         for reminder in reminders:
             user_id = int(reminder['user_id'])
             task_name = reminder['task']
@@ -155,8 +155,18 @@ async def reminder_loop():
                 user = await client.fetch_user(user_id)
                 if user:
                     await user.send(f"⏰ Reminder: Your task **{task_name}** is coming up! Due on {due_date}.")
+                
+                # Delete the sent reminder date so it won't be sent again
+                cursor.execute(
+                    "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date = ?",
+                    (reminder['id'], today_str)
+                )
+                conn.commit()
+
             except Exception as e:
                 print(f"Failed to send reminder to {user_id}: {e}")
+
+        conn.close()
 
         # Sleep for 60 minutes (adjust as needed)
         await asyncio.sleep(3600)
@@ -172,7 +182,7 @@ async def on_message(message):
         await message.channel.send('Pong!')
 
     if message.content.startswith("!remove"):
-        content = message.content[7:].strip()
+        content = message.content[8:]
         conn = get_db_connection()
         cursor = conn.cursor()
         cursor.execute(
