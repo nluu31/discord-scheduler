@@ -4,6 +4,16 @@ import asyncio
 import json
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+import sqlite3
+
+DB_FILE = 'tasks.db'
+
+def get_db_connection():
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA foreign_keys = ON")  # Enable FK support
+    return conn
+
 
 TASKS_FILE = "tasks.json"
 
@@ -14,6 +24,83 @@ intents = discord.Intents.default()
 intents.message_content = True
 
 client = discord.Client(intents=intents)
+
+def add_task_with_reminders(user_id, task_name, due_date_str, reminder_dates):
+    """
+    reminder_dates: list of strings in format "YYYY-MM-DD" or "Jul 31 2025"
+    due_date_str: string date in format "Jul 31 2025" or similar
+    """
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        "INSERT INTO tasks (user_id, task, due_date) VALUES (?, ?, ?)",
+        (user_id, task_name, due_date_str)
+    )
+    task_id = cursor.lastrowid
+
+    for date_str in reminder_dates:
+        cursor.execute(
+            "INSERT INTO reminder_dates (task_id, reminder_date) VALUES (?, ?)",
+            (task_id, date_str)
+        )
+    conn.commit()
+    conn.close()
+
+def get_tasks_with_reminders_for_user(user_id):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT tasks.id, tasks.task, tasks.due_date, reminder_dates.reminder_date
+        FROM tasks
+        LEFT JOIN reminder_dates ON tasks.id = reminder_dates.task_id
+        WHERE tasks.user_id = ?
+        ORDER BY tasks.id
+    """, (user_id,))
+
+    rows = cursor.fetchall()
+    conn.close()
+
+    tasks = {}
+    for row in rows:
+        task_id = row['id']
+        if task_id not in tasks:
+            tasks[task_id] = {
+                'task': row['task'],
+                'due_date': row['due_date'],
+                'reminder_dates': []
+            }
+        if row['reminder_date']:
+            tasks[task_id]['reminder_dates'].append(row['reminder_date'])
+    return tasks
+
+
+def create_tables():
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            task TEXT NOT NULL,
+            due_date TEXT NOT NULL
+        );
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS reminder_dates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            reminder_date TEXT NOT NULL,
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        );
+    """)
+    conn.commit()
+    conn.close()
+
+create_tables()  # Create tables before starting the bot
+
+# Your existing Discord bot code here...
 
 def save_tasks(tasks):
     serializable_tasks = []
@@ -29,21 +116,10 @@ def save_tasks(tasks):
         json.dump(serializable_tasks, f, indent=4)
 
 def load_tasks():
-    try:
-        with open(TASKS_FILE, "r") as f:
-            raw_tasks = json.load(f)
-        loaded_tasks = []
-        for t in raw_tasks:
-            loaded_tasks.append({
-                'user_id': t['user_id'],
-                'task_name': t['task_name'],
-                'due': datetime.fromisoformat(t['due']),
-                'channel': client.get_channel(t['channel_id']),
-                'reminder_dates': [datetime.fromisoformat(d).date() for d in t['reminder_dates']],
-            })
-        return loaded_tasks
-    except (FileNotFoundError, json.JSONDecodeError):
-        return []
+    conn = get_db_connection()
+    tasks = conn.execute("SELECT * FROM tasks").fetchall()
+    conn.close()
+    return tasks
 
 @client.event
 async def on_ready():
@@ -52,35 +128,40 @@ async def on_ready():
     tasks = load_tasks()  # Load tasks from JSON on startup
     client.loop.create_task(reminder_loop())
 
+
 async def reminder_loop():
     await client.wait_until_ready()
-    global tasks
-
     while not client.is_closed():
-        now = datetime.today()
-        changed = False
+        today_str = datetime.today().strftime("%Y-%m-%d")  # ISO format for reminders
 
-        for task in tasks[:]:
-            if now >= task['due']:
-                try:
-                    await task['channel'].send(f"<@{task['user_id']}> ⏰ Reminder: Your task '{task['task_name']}' is due!")
-                except discord.Forbidden:
-                    print(f"Could not send message in this channel.")
-                tasks.remove(task)
-                changed = True
-            elif now.date() in task['reminder_dates']:
-                try:
-                    await task['channel'].send(f"<@{task['user_id']}> ⏰ Reminder: Your task '{task['task_name']}' is due on {task['due'].strftime('%A, %b %d, %Y')}!")
-                    task['reminder_dates'].remove(now.date())
-                    changed = True
-                except discord.Forbidden:
-                    print("Could not send message in this channel.")
-            
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # Find all reminders matching today
+        cursor.execute("""
+            SELECT tasks.id, tasks.user_id, tasks.task, tasks.due_date
+            FROM tasks
+            JOIN reminder_dates ON tasks.id = reminder_dates.task_id
+            WHERE reminder_dates.reminder_date = ?
+        """, (today_str,))
+        reminders = cursor.fetchall()
+        conn.close()
 
-        if changed:
-            save_tasks(tasks)
+        for reminder in reminders:
+            user_id = int(reminder['user_id'])
+            task_name = reminder['task']
+            due_date = reminder['due_date']
 
-        await asyncio.sleep(10)
+            try:
+                user = await client.fetch_user(user_id)
+                if user:
+                    await user.send(f"⏰ Reminder: Your task **{task_name}** is coming up! Due on {due_date}.")
+            except Exception as e:
+                print(f"Failed to send reminder to {user_id}: {e}")
+
+        # Sleep for 60 minutes (adjust as needed)
+        await asyncio.sleep(3600)
+
+
 
 @client.event
 async def on_message(message):
@@ -91,80 +172,77 @@ async def on_message(message):
         await message.channel.send('Pong!')
 
     if message.content.startswith("!remove"):
-    try:
         content = message.content[7:].strip()
-        found = False
-        for i, task in enumerate(tasks):
-            if task['task_name'] == content:
-                tasks.pop(i)
-                save_tasks(tasks)  # Save after removal
-                await message.channel.send(f"✅ {content} has been successfully removed from your schedule")
-                found = True
-                break
-        if not found:
-            await message.channel.send(f"There is no task named {content} coming up")
-    except Exception:
-        await message.channel.send("Error has occured")
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute(
+            "DELETE FROM tasks WHERE task = ? AND user_id = ?",
+            (content, str(message.author.id))
+        )
+        conn.commit()
+        if cursor.rowcount > 0:
+            await message.channel.send(f"✅ {content} has been removed.")
+        else:
+            await message.channel.send(f"❌ No task named **{content}** found.")
+        conn.close()
 
         
     
     if message.content == "!upcoming":
-        try: 
-            if len(tasks) == 0:
-                await message.channel.send("You have no upcoming tasks!")
-            else:
-                sorted_by_date = sorted(tasks, key = lambda x: x['due'])
-                output = "Your Upcoming Tasks are: \n"
-                for task in sorted_by_date:
-                    delta = (task['due'].date() - datetime.today().date()).days
-                    output += f"🌌 **{task['task_name']}** due on **{task['due'].strftime('%A, %b %d, %Y')}** due in {delta} day(s)\n"
-                await message.channel.send(output)
-                
-        except Exception:
-            await message.channel.send("Error has occured")
+        conn = get_db_connection()
+        tasks = conn.execute(
+            "SELECT * FROM tasks WHERE user_id = ?", (str(message.author.id),)
+        ).fetchall()
+        conn.close()
+
+        if not tasks:
+            await message.channel.send("You have no upcoming tasks!")
+        else:
+            output = "📋 Your Upcoming Tasks:\n"
+            for task in tasks:
+                due = datetime.strptime(task['due_date'], "%b %d %Y")
+                delta = (due.date() - datetime.today().date()).days
+                output += f"🌌 **{task['task']}** due on **{due.strftime('%A, %b %d, %Y')}** — in {delta} day(s)\n"
+            await message.channel.send(output)
 
 
     if message.content.startswith('!schedule'):
         try:
+            # Format: !schedule TaskName | Jul 31 2025 | 3
             content = message.content[9:].strip()
             parts = content.split(' | ')
             if len(parts) != 3:
-                await message.channel.send("Usage: !schedule TaskName | time (e.g., jul 31 2025) | numberOfReminders")
+                await message.channel.send("Usage: !schedule TaskName | Jul 31 2025 | numberOfReminders")
                 return
 
             task_name = parts[0].strip()
             due_date = datetime.strptime(parts[1].strip(), "%b %d %Y")
-            numReminders = int(parts[2].strip())
+            num_reminders = int(parts[2].strip())
 
-            today = datetime.today().date()
-            daysLeft = (due_date.date() -  today).days
-            interval = daysLeft / (numReminders + 1)
+            today = datetime.today()
+            days_left = (due_date - today).days
+            interval = days_left / (num_reminders + 1)
 
-            reminder_dates = [today + timedelta(days=round(interval * i)) for i in range(1, numReminders + 1)]
-            for i, d in enumerate(reminder_dates, 1):
-                print(f"Reminder {i}: {d}")
+            # Compute reminder dates as list of strings in ISO format
+            reminder_dates = []
+            for i in range(1, num_reminders + 1):
+                reminder_day = today + timedelta(days=round(interval * i))
+                reminder_dates.append(reminder_day.strftime("%Y-%m-%d"))
 
-            tasks.append({
-                'user_id': message.author.id,
-                'task_name': task_name,
-                'due': due_date,
-                'channel' : message.channel,
-                'reminder_dates' : reminder_dates
-            })
-
-            save_tasks(tasks)  # <-- SAVE TASKS HERE!
-
-            reminder_list = "\n".join(
-                [f"Reminder {i}: {d.strftime('%A, %b %d, %Y')}" for i, d in enumerate(reminder_dates, 1)]
+            add_task_with_reminders(
+                str(message.author.id),
+                task_name,
+                due_date.strftime("%b %d %Y"),
+                reminder_dates
             )
 
+            reminders_text = "\n".join([f"Reminder {i+1}: {d}" for i, d in enumerate(reminder_dates)])
             await message.channel.send(
-                f"✅ Task **'{task_name}'** has been scheduled for **{due_date.strftime('%A, %b %d, %Y')}**.\n"
-                f"You will receive {numReminders} reminder(s) on these days:\n\n{reminder_list}"
+                f"✅ Task **{task_name}** scheduled for **{due_date.strftime('%A, %b %d, %Y')}** with reminders on:\n{reminders_text}"
             )
 
-        except Exception:
-            await message.channel.send("Error: Use format: `!schedule TaskName | jul 31 2025 | 3`")
+        except Exception as e:
+            await message.channel.send(f"Error scheduling task: {e}")
 
     # Your other commands (!upcoming, !remove) here (no changes)
 

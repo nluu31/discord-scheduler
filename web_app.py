@@ -1,31 +1,11 @@
 import os
-import json
-from flask import Flask, redirect, url_for, session, request, render_template_string
+from flask import Flask, redirect, url_for, session, request, render_template_string, g
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 import sqlite3
+from datetime import datetime, timedelta
 
 DB_FILE = "tasks.db"
-
-def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
-
-def init_db():
-    conn = get_db_connection()
-    conn.execute('''
-        CREATE TABLE IF NOT EXISTS tasks (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id TEXT NOT NULL,
-            task TEXT NOT NULL,
-            due_date TEXT NOT NULL,
-            reminders INTEGER NOT NULL
-        );
-    ''')
-    conn.commit()
-    conn.close()
-
 
 load_dotenv()
 
@@ -43,7 +23,72 @@ discord = oauth.register(
     client_kwargs={'scope': 'identify email'},
 )
 
-# Simple homepage
+
+def get_db_connection():
+    if 'db' not in g:
+        conn = sqlite3.connect(DB_FILE, timeout=5)  # Wait up to 5 sec if locked
+        conn.row_factory = sqlite3.Row
+        conn.execute("PRAGMA foreign_keys = ON")
+        g.db = conn
+    return g.db
+
+@app.teardown_appcontext
+def close_db_connection(exception):
+    db = g.pop('db', None)
+    if db is not None:
+        db.close()
+
+
+def init_db():
+    conn = get_db_connection()
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS tasks (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT NOT NULL,
+            task TEXT NOT NULL,
+            due_date TEXT NOT NULL
+        );
+    ''')
+    conn.execute('''
+        CREATE TABLE IF NOT EXISTS reminder_dates (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task_id INTEGER NOT NULL,
+            reminder_date TEXT NOT NULL,
+            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
+        );
+    ''')
+    conn.commit()
+
+
+def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
+    conn = get_db_connection()
+    cursor = conn.cursor()
+
+    cursor.execute(
+        'INSERT INTO tasks (user_id, task, due_date) VALUES (?, ?, ?)',
+        (user_id, task_name, due_date_str)
+    )
+    task_id = cursor.lastrowid
+
+    # Calculate reminder dates
+    due_date = datetime.strptime(due_date_str, "%b %d %Y")
+    today = datetime.today()
+    days_left = (due_date - today).days
+    interval = days_left / (num_reminders + 1) if num_reminders > 0 else 0
+
+    reminder_dates = []
+    for i in range(1, num_reminders + 1):
+        reminder_day = today + timedelta(days=round(interval * i))
+        reminder_dates.append(reminder_day.strftime("%Y-%m-%d"))
+
+    for rd in reminder_dates:
+        cursor.execute(
+            'INSERT INTO reminder_dates (task_id, reminder_date) VALUES (?, ?)',
+            (task_id, rd)
+        )
+    conn.commit()
+
+
 @app.route('/')
 def home():
     user = session.get('user')
@@ -56,13 +101,13 @@ def home():
         )
     return '<a href="/login">Login with Discord</a>'
 
-# Start OAuth login
+
 @app.route('/login')
 def login():
     redirect_uri = url_for('authorize', _external=True)
     return discord.authorize_redirect(redirect_uri)
 
-# OAuth callback handler
+
 @app.route('/callback')
 def authorize():
     token = discord.authorize_access_token()
@@ -71,7 +116,7 @@ def authorize():
     session['user'] = user_info
     return redirect('/dashboard')
 
-# Protected dashboard
+
 @app.route('/dashboard', methods=['GET', 'POST'])
 def dashboard():
     user = session.get('user')
@@ -79,61 +124,80 @@ def dashboard():
         return redirect('/')
 
     user_id = user['id']
-    conn = get_db_connection()
+    error_msg = None
 
     if request.method == 'POST':
         task_name = request.form.get('task')
-        due_date = request.form.get('due_date')  # Format: Jul 31 2025
-        reminders = int(request.form.get('reminders', 1))
+        due_date = request.form.get('due_date')
+        reminders_str = request.form.get('reminders', '1')
 
-        conn.execute(
-            'INSERT INTO tasks (user_id, task, due_date, reminders) VALUES (?, ?, ?, ?)',
-            (user_id, task_name, due_date, reminders)
-        )
-        conn.commit()
+        # Validate inputs
+        try:
+            num_reminders = int(reminders_str)
+            if num_reminders < 1:
+                raise ValueError("Number of reminders must be at least 1.")
+            # Check due_date format
+            datetime.strptime(due_date, "%b %d %Y")
+        except Exception:
+            error_msg = "Invalid input. Please check your due date format (e.g., Jul 31 2025) and reminders (positive integer)."
+        else:
+            add_task_with_reminders(user_id, task_name, due_date, num_reminders)
 
+    conn = get_db_connection()
     tasks = conn.execute(
-        'SELECT * FROM tasks WHERE user_id = ?',
+        'SELECT tasks.id, tasks.task, tasks.due_date, COUNT(reminder_dates.id) AS reminders '
+        'FROM tasks LEFT JOIN reminder_dates ON tasks.id = reminder_dates.task_id '
+        'WHERE tasks.user_id = ? '
+        'GROUP BY tasks.id '
+        'ORDER BY tasks.id',
         (user_id,)
     ).fetchall()
-    conn.close()
 
     return render_template_string('''
         <h2>Dashboard for {{ user['username'] }}#{{ user['discriminator'] }}</h2>
         <p>Discord ID: {{ user['id'] }}</p>
+
+        {% if error_msg %}
+            <p style="color: red; font-weight: bold;">{{ error_msg }}</p>
+        {% endif %}
+
         <form method="POST">
             <label>Task:</label><br>
             <input name="task" required><br><br>
+
             <label>Due date (e.g., Jul 31 2025):</label><br>
             <input name="due_date" required><br><br>
+
             <label>Reminders:</label><br>
             <input type="number" name="reminders" value="1" min="1"><br><br>
+
             <input type="submit" value="Add Task">
         </form>
         <hr>
         <h3>Scheduled Tasks:</h3>
-{% if tasks %}
-    <ul>
-        {% for task in tasks %}
-            <li>
-                <b>{{ task['task'] }}</b> — due {{ task['due_date'] }} — {{ task['reminders'] }} reminder(s)
-                <form method="POST" action="/delete_task" style="display:inline;">
-                    <input type="hidden" name="task_id" value="{{ task['id'] }}">
-                    <button type="submit">Delete</button>
-                </form>
-                <form method="GET" action="/edit_task/{{ task['id'] }}" style="display:inline;">
-                    <button type="submit">Edit</button>
-                </form>
-            </li>
-        {% endfor %}
-    </ul>
-{% else %}
-    <p>No tasks yet.</p>
-{% endif %}
+
+        {% if tasks %}
+            <ul>
+                {% for task in tasks %}
+                    <li>
+                        <b>{{ task['task'] }}</b> — due {{ task['due_date'] }} — {{ task['reminders'] }} reminder(s)
+                        <form method="POST" action="/delete_task" style="display:inline;">
+                            <input type="hidden" name="task_id" value="{{ task['id'] }}">
+                            <button type="submit">Delete</button>
+                        </form>
+                        <form method="GET" action="/edit_task/{{ task['id'] }}" style="display:inline;">
+                            <button type="submit">Edit</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No tasks yet.</p>
+        {% endif %}
 
         <br>
         <a href="/logout">Logout</a>
-    ''', user=user, tasks=tasks)
+    ''', user=user, tasks=tasks, error_msg=error_msg)
 
 
 @app.route('/delete_task', methods=['POST'])
@@ -143,13 +207,11 @@ def delete_task():
         return redirect('/')
 
     task_id = request.form.get('task_id')
-
     conn = get_db_connection()
     conn.execute('DELETE FROM tasks WHERE id = ? AND user_id = ?', (task_id, user['id']))
     conn.commit()
-    conn.close()
-
     return redirect('/dashboard')
+
 
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
 def edit_task(task_id):
@@ -162,21 +224,66 @@ def edit_task(task_id):
     if request.method == 'POST':
         new_task = request.form.get('task')
         new_due_date = request.form.get('due_date')
-        new_reminders = int(request.form.get('reminders'))
+        new_reminders_str = request.form.get('reminders')
 
+        error_msg = None
+        try:
+            new_reminders = int(new_reminders_str)
+            if new_reminders < 1:
+                raise ValueError("Reminders must be at least 1.")
+            datetime.strptime(new_due_date, "%b %d %Y")
+        except Exception:
+            error_msg = "Invalid input. Please check your due date format (e.g., Jul 31 2025) and reminders (positive integer)."
+            task = conn.execute(
+                'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
+                (task_id, user['id'])
+            ).fetchone()
+            return render_template_string('''
+                <h2>Edit Task</h2>
+                <p style="color: red; font-weight: bold;">{{ error_msg }}</p>
+                <form method="POST">
+                    <label>Task:</label><br>
+                    <input name="task" value="{{ task['task'] }}" required><br><br>
+                    <label>Due date (e.g., Jul 31 2025):</label><br>
+                    <input name="due_date" value="{{ task['due_date'] }}" required><br><br>
+                    <label>Reminders:</label><br>
+                    <input type="number" name="reminders" value="{{ task['reminders'] }}" min="1"><br><br>
+                    <input type="submit" value="Update Task">
+                </form>
+                <br>
+                <a href="/dashboard">← Back to Dashboard</a>
+            ''', task=task, error_msg=error_msg)
+
+        # No error, update task
         conn.execute(
-            'UPDATE tasks SET task = ?, due_date = ?, reminders = ? WHERE id = ? AND user_id = ?',
-            (new_task, new_due_date, new_reminders, task_id, user['id'])
+            'UPDATE tasks SET task = ?, due_date = ? WHERE id = ? AND user_id = ?',
+            (new_task, new_due_date, task_id, user['id'])
         )
+        conn.execute('DELETE FROM reminder_dates WHERE task_id = ?', (task_id,))
+
+        # Recalculate reminders
+        due_date_dt = datetime.strptime(new_due_date, "%b %d %Y")
+        today = datetime.today()
+        days_left = (due_date_dt - today).days
+        interval = days_left / (new_reminders + 1) if new_reminders > 0 else 0
+        reminder_dates = []
+        for i in range(1, new_reminders + 1):
+            reminder_day = today + timedelta(days=round(interval * i))
+            reminder_dates.append(reminder_day.strftime("%Y-%m-%d"))
+
+        cursor = conn.cursor()
+        for rd in reminder_dates:
+            cursor.execute(
+                'INSERT INTO reminder_dates (task_id, reminder_date) VALUES (?, ?)',
+                (task_id, rd)
+            )
         conn.commit()
-        conn.close()
         return redirect('/dashboard')
 
     task = conn.execute(
         'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
         (task_id, user['id'])
     ).fetchone()
-    conn.close()
 
     if not task:
         return "Task not found", 404
@@ -189,7 +296,7 @@ def edit_task(task_id):
             <label>Due date (e.g., Jul 31 2025):</label><br>
             <input name="due_date" value="{{ task['due_date'] }}" required><br><br>
             <label>Reminders:</label><br>
-            <input type="number" name="reminders" value="{{ task['reminders'] }}" min="1"><br><br>
+            <input type="number" name="reminders" value="{{ task['reminders'] if 'reminders' in task.keys() else 1 }}" min="1"><br><br>
             <input type="submit" value="Update Task">
         </form>
         <br>
@@ -197,13 +304,13 @@ def edit_task(task_id):
     ''', task=task)
 
 
-
 @app.route('/logout')
 def logout():
     session.pop('user', None)
     return redirect('/')
 
-if __name__ == '__main__':
-    init_db()
-    app.run(debug=True)
 
+if __name__ == '__main__':
+    with app.app_context():
+        init_db()
+    app.run(debug=True)
