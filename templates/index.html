@@ -1,28 +1,25 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Task Reminder</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <title>Task Scheduler</title>
 </head>
 <body>
-  <div class="container">
-    <h2>Schedule a Task</h2>
+    <h2>Welcome, {{ session['username'] }}</h2>
+
     <form method="POST">
-      <input type="text" name="task" placeholder="Task name" required><br>
-      <input type="date" name="due_date" required><br>
-      <input type="number" name="num_reminders" placeholder="Number of reminders" min="1" required><br>
-      <button type="submit">Submit</button>
+        <label>Task:</label><input type="text" name="task"><br>
+        <label>Due Date (e.g. Jul 31 2025):</label><input type="text" name="due"><br>
+        <label>Number of Reminders:</label><input type="number" name="reminders"><br>
+        <button type="submit">Add Task</button>
     </form>
 
-    <h3>Upcoming Tasks</h3>
+    <h3>Upcoming Tasks:</h3>
     <ul>
-      {% for task in tasks %}
-        <li>
-          <strong>{{ task.task }}</strong> - Due: {{ task.due_date }}<br>
-          Reminders: {{ task.reminder_dates | join(", ") }}
-        </li>
-      {% endfor %}
+        {% for task in tasks %}
+            <li>{{ task['task_name'] }} - Due: {{ task['due'] }}</li>
+        {% endfor %}
     </ul>
-  </div>
+
+    <a href="{{ url_for('logout') }}">Logout</a>
 </body>
 </html>

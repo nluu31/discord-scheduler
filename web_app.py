@@ -1,55 +1,69 @@
-from flask import Flask, request, jsonify
-import json
-from datetime import datetime, timedelta
 import os
+from flask import Flask, redirect, url_for, session, request, render_template_string
+from authlib.integrations.flask_client import OAuth
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
-TASKS_FILE = "tasks.json"
-DISCORD_CHANNEL_ID = 123456789012345678  # Replace with your real Discord channel ID
+app.secret_key = os.getenv('SECRET_KEY', 'dev_secret_key')
 
-def load_tasks():
-    if not os.path.exists(TASKS_FILE):
-        return []
-    with open(TASKS_FILE, "r") as f:
-        return json.load(f)
+oauth = OAuth(app)
+discord = oauth.register(
+    name='discord',
+    client_id=os.getenv('DISCORD_CLIENT_ID'),
+    client_secret=os.getenv('DISCORD_CLIENT_SECRET'),
+    access_token_url='https://discord.com/api/oauth2/token',
+    authorize_url='https://discord.com/api/oauth2/authorize',
+    api_base_url='https://discord.com/api/',
+    client_kwargs={'scope': 'identify email'},
+)
 
-def save_tasks(tasks):
-    with open(TASKS_FILE, "w") as f:
-        json.dump(tasks, f, indent=4)
+# Simple homepage
+@app.route('/')
+def home():
+    user = session.get('user')
+    if user:
+        return (
+            f"<h1>Welcome, {user['username']}#{user['discriminator']}!</h1>"
+            f"<p>Your Discord ID is: {user['id']}</p>"
+            f"<a href='/dashboard'>Go to dashboard</a><br>"
+            f"<a href='/logout'>Logout</a>"
+        )
+    return '<a href="/login">Login with Discord</a>'
 
-@app.route("/add_task", methods=["POST"])
-def add_task():
-    try:
-        data = request.json
-        task_name = data['task']
-        due_date = datetime.strptime(data['due_date'], "%b %d %Y")
-        num_reminders = int(data['num_reminders'])
+# Start OAuth login
+@app.route('/login')
+def login():
+    redirect_uri = url_for('authorize', _external=True)
+    return discord.authorize_redirect(redirect_uri)
 
-        today = datetime.today().date()
-        days_until_due = (due_date.date() - today).days
-        interval = days_until_due / (num_reminders + 1)
-        reminder_dates = [
-            (today + timedelta(days=round(interval * (i + 1)))).isoformat()
-            for i in range(num_reminders)
-        ]
+# OAuth callback handler
+@app.route('/callback')
+def authorize():
+    token = discord.authorize_access_token()
+    resp = discord.get('users/@me', token=token)
+    user_info = resp.json()
+    session['user'] = user_info
+    return redirect('/dashboard')
 
-        tasks = load_tasks()
+# Protected dashboard
+@app.route('/dashboard')
+def dashboard():
+    user = session.get('user')
+    if not user:
+        return redirect('/')
+    return (
+        f"<h2>Dashboard for {user['username']}#{user['discriminator']}</h2>"
+        f"<p>Discord ID: {user['id']}</p>"
+        f"<p>Email: {user.get('email', 'Not provided')}</p>"
+        "<a href='/logout'>Logout</a>"
+    )
 
-        new_task = {
-            'user_id': None,  # or a Discord user ID if you want to tag
-            'task_name': task_name,
-            'due': due_date.isoformat(),
-            'channel_id': DISCORD_CHANNEL_ID,
-            'reminder_dates': reminder_dates,
-        }
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    return redirect('/')
 
-        tasks.append(new_task)
-        save_tasks(tasks)
-
-        return jsonify({"status": "success", "message": "Task added!"})
-
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 400
-
-if __name__ == "__main__":
+if __name__ == '__main__':
     app.run(debug=True)
