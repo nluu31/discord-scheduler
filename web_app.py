@@ -64,29 +64,30 @@ def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
     conn = get_db_connection()
     cursor = conn.cursor()
 
+    # Convert to ISO format before inserting
+    due_date = datetime.strptime(due_date_str.strip(), "%b %d %Y")
+    due_date_iso = due_date.strftime("%Y-%m-%d")
+
     cursor.execute(
         'INSERT INTO tasks (user_id, task, due_date) VALUES (?, ?, ?)',
-        (user_id, task_name, due_date_str)
+        (user_id, task_name, due_date_iso)
     )
     task_id = cursor.lastrowid
 
     # Calculate reminder dates
-    due_date = datetime.strptime(due_date_str, "%b %d %Y")
     today = datetime.today()
     days_left = (due_date - today).days
     interval = days_left / (num_reminders + 1) if num_reminders > 0 else 0
 
-    reminder_dates = []
     for i in range(1, num_reminders + 1):
         reminder_day = today + timedelta(days=round(interval * i))
-        reminder_dates.append(reminder_day.strftime("%Y-%m-%d"))
-
-    for rd in reminder_dates:
+        reminder_date_str = reminder_day.strftime("%Y-%m-%d")
         cursor.execute(
             'INSERT INTO reminder_dates (task_id, reminder_date) VALUES (?, ?)',
-            (task_id, rd)
+            (task_id, reminder_date_str)
         )
     conn.commit()
+
 
 
 @app.route('/')

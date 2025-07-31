@@ -47,33 +47,33 @@ def add_task_with_reminders(user_id, task_name, due_date_str, reminder_dates):
     conn.commit()
     conn.close()
 
-def get_tasks_with_reminders_for_user(user_id):
-    conn = get_db_connection()
-    cursor = conn.cursor()
+# def get_tasks_with_reminders_for_user(user_id):
+#     conn = get_db_connection()
+#     cursor = conn.cursor()
 
-    cursor.execute("""
-        SELECT tasks.id, tasks.task, tasks.due_date, reminder_dates.reminder_date
-        FROM tasks
-        LEFT JOIN reminder_dates ON tasks.id = reminder_dates.task_id
-        WHERE tasks.user_id = ?
-        ORDER BY tasks.id
-    """, (user_id,))
+#     cursor.execute("""
+#         SELECT tasks.id, tasks.task, tasks.due_date, reminder_dates.reminder_date
+#         FROM tasks
+#         LEFT JOIN reminder_dates ON tasks.id = reminder_dates.task_id
+#         WHERE tasks.user_id = ?
+#         ORDER BY tasks.id
+#     """, (user_id,))
 
-    rows = cursor.fetchall()
-    conn.close()
+#     rows = cursor.fetchall()
+#     conn.close()
 
-    tasks = {}
-    for row in rows:
-        task_id = row['id']
-        if task_id not in tasks:
-            tasks[task_id] = {
-                'task': row['task'],
-                'due_date': row['due_date'],
-                'reminder_dates': []
-            }
-        if row['reminder_date']:
-            tasks[task_id]['reminder_dates'].append(row['reminder_date'])
-    return tasks
+#     tasks = {}
+#     for row in rows:
+#         task_id = row['id']
+#         if task_id not in tasks:
+#             tasks[task_id] = {
+#                 'task': row['task'],
+#                 'due_date': row['due_date'],
+#                 'reminder_dates': []
+#             }
+#         if row['reminder_date']:
+#             tasks[task_id]['reminder_dates'].append(row['reminder_date'])
+#     return tasks
 
 
 def create_tables():
@@ -144,6 +144,28 @@ async def reminder_loop():
             WHERE reminder_dates.reminder_date = ?
         """, (today_str,))
         reminders = cursor.fetchall()
+        cursor.execute("""
+        SELECT tasks.id, tasks.user_id, tasks.task, tasks.due_date
+        FROM tasks
+        WHERE tasks.due_date <= ?
+        """, (today_str,))
+        to_be_removed = cursor.fetchall()
+
+        for task in to_be_removed:
+            user_id = int(task['user_id'])
+            task_name = task['task']
+            task_id = task['id']  # extract the actual ID for deletion
+
+            try:
+                user = await client.fetch_user(user_id)
+                if user:
+                    await user.send(f"⏰ Reminder: Your task **{task_name}** is due today!")
+                cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+                conn.commit()
+            except Exception as e:
+                print(f"Failed to send reminder to {user_id}: {e}")
+
+
 
         # Remove each reminder_date after notifying the user
         for reminder in reminders:
@@ -165,10 +187,7 @@ async def reminder_loop():
 
             except Exception as e:
                 print(f"Failed to send reminder to {user_id}: {e}")
-
         conn.close()
-
-        # Sleep for 60 minutes (adjust as needed)
         await asyncio.sleep(3600)
 
 
@@ -210,7 +229,7 @@ async def on_message(message):
         else:
             output = "📋 Your Upcoming Tasks:\n"
             for task in tasks:
-                due = datetime.strptime(task['due_date'], "%b %d %Y")
+                due = datetime.strptime(task['due_date'], "%Y-%m-%d")
                 delta = (due.date() - datetime.today().date()).days
                 output += f"🌌 **{task['task']}** due on **{due.strftime('%A, %b %d, %Y')}** — in {delta} day(s)\n"
             await message.channel.send(output)
@@ -242,7 +261,7 @@ async def on_message(message):
             add_task_with_reminders(
                 str(message.author.id),
                 task_name,
-                due_date.strftime("%b %d %Y"),
+                due_date.strftime("%Y-%m-%d"),
                 reminder_dates
             )
 
