@@ -128,7 +128,7 @@ def dashboard():
     error_msg = None
 
     if request.method == 'POST':
-        task_name = request.form.get('task')
+        task_name = request.form.get('task').strip()
         due_date = request.form.get('due_date')
         reminders_str = request.form.get('reminders', '1')
 
