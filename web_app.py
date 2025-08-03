@@ -94,13 +94,37 @@ def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
 def home():
     user = session.get('user')
     if user:
-        return (
-            f"<h1>Welcome, {user['username']}#{user['discriminator']}!</h1>"
-            f"<p>Your Discord ID is: {user['id']}</p>"
-            f"<a href='/dashboard'>Go to dashboard</a><br>"
-            f"<a href='/logout'>Logout</a>"
-        )
-    return '<a href="/login">Login with Discord</a>'
+        return render_template_string('''
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Welcome</title>
+            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        </head>
+        <body>
+            <h1>Welcome, {{ user['username'] }}#{{ user['discriminator'] }}!</h1>
+            <p>Your Discord ID is: {{ user['id'] }}</p>
+            <a href="/dashboard">Go to dashboard</a><br>
+            <a href="/logout">Logout</a>
+        </body>
+        </html>
+        ''', user=user)
+    
+    return render_template_string('''
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>Login</title>
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    </head>
+    <body>
+        <h2>Welcome to Task Tracker</h2>
+        <p>Please log in using your Discord account.</p>
+        <a href="/login"><button>Login with Discord</button></a>
+    </body>
+    </html>
+    ''')
+
 
 
 @app.route('/login')
@@ -155,49 +179,81 @@ def dashboard():
     ).fetchall()
 
     return render_template_string('''
-        <h2>Dashboard for {{ user['username'] }}#{{ user['discriminator'] }}</h2>
-        <p>Discord ID: {{ user['id'] }}</p>
+      <!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="container">
+    <h2>Dashboard for {{ user['username'] }}#{{ user['discriminator'] }}</h2>
+    <p>Discord ID: {{ user['id'] }}</p>
 
-        {% if error_msg %}
-            <p style="color: red; font-weight: bold;">{{ error_msg }}</p>
-        {% endif %}
+    {% if error_msg %}
+        <p class="error">{{ error_msg }}</p>
+    {% endif %}
 
-        <form method="POST">
-            <label>Task:</label><br>
-            <input name="task" required><br><br>
+    <form method="POST">
+        <label>Task</label>
+        <input type="text" name="task" required>
 
-            <label>Due date (e.g., Jul 31 2025):</label><br>
-            <input name="due_date" required><br><br>
+        <label>Due Date (e.g., Aug 30 2025)</label>
+        <input type="text" name="due_date" required>
 
-            <label>Reminders:</label><br>
-            <input type="number" name="reminders" value="1" min="1"><br><br>
+        <label>Reminders</label>
+        <input type="number" name="reminders" value="1" min="1">
 
-            <input type="submit" value="Add Task">
-        </form>
-        <hr>
-        <h3>Scheduled Tasks:</h3>
+        <input type="submit" value="Add Task">
+    </form>
 
+    <button class="toggle-btn" onclick="toggleTasks()" id="toggle-btn">Show Active Tasks ▼</button>
+
+    <div id="task-section" style="display: none;">
         {% if tasks %}
-            <ul>
+            <ul class="task-list">
                 {% for task in tasks %}
-                    <li>
-                        <b>{{ task['task'] }}</b> — due {{ task['due_date'] }} — {{ task['reminders'] }} reminder(s)
-                        <form method="POST" action="/delete_task" style="display:inline;">
-                            <input type="hidden" name="task_id" value="{{ task['id'] }}">
-                            <button type="submit">Delete</button>
-                        </form>
-                        <form method="GET" action="/edit_task/{{ task['id'] }}" style="display:inline;">
-                            <button type="submit">Edit</button>
-                        </form>
+                    <li class="task-item">
+                        <strong>{{ task['task'] }}</strong>
+                        <div class="task-meta">Due {{ task['due_date'] }} • {{ task['reminders'] }} reminder(s)</div>
+                        <div class="actions">
+                            <form method="POST" action="/delete_task">
+                                <input type="hidden" name="task_id" value="{{ task['id'] }}">
+                                <button type="submit">Delete</button>
+                            </form>
+                            <form method="GET" action="/edit_task/{{ task['id'] }}">
+                                <button type="submit">Edit</button>
+                            </form>
+                        </div>
                     </li>
                 {% endfor %}
             </ul>
         {% else %}
             <p>No tasks yet.</p>
         {% endif %}
+    </div>
 
-        <br>
-        <a href="/logout">Logout</a>
+    <br>
+    <a href="/logout"><button>Logout</button></a>
+</div>
+
+<script>
+function toggleTasks() {
+    const section = document.getElementById('task-section');
+    const btn = document.getElementById('toggle-btn');
+    if (section.style.display === 'none') {
+        section.style.display = 'block';
+        btn.textContent = 'Hide Active Tasks ▲';
+    } else {
+        section.style.display = 'none';
+        btn.textContent = 'Show Active Tasks ▼';
+    }
+}
+</script>
+</body>
+</html>
+
+
     ''', user=user, tasks=tasks, error_msg=error_msg)
 
 
@@ -240,6 +296,7 @@ def edit_task(task_id):
                 (task_id, user['id'])
             ).fetchone()
             return render_template_string('''
+                <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
                 <h2>Edit Task</h2>
                 <p style="color: red; font-weight: bold;">{{ error_msg }}</p>
                 <form method="POST">
@@ -290,6 +347,7 @@ def edit_task(task_id):
         return "Task not found", 404
 
     return render_template_string('''
+        <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
         <h2>Edit Task</h2>
         <form method="POST">
             <label>Task:</label><br>

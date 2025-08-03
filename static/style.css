@@ -1,25 +1,117 @@
-body {
-    font-family: Arial, sans-serif;
-    background: #f7f7f7;
+/* Reset & basic layout */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+  }
+  
+  body {
+    font-family: "Segoe UI", "Arial", sans-serif;
+    background-color: #f9f9f9;
+    color: #222;
     display: flex;
     justify-content: center;
-    align-items: center;
-    height: 100vh;
+    padding: 40px 16px;
   }
   
+  /* Main container */
   .container {
-    background: white;
-    padding: 2em;
-    border-radius: 10px;
-    box-shadow: 0 0 10px #ccc;
-    text-align: center;
+    max-width: 600px;
+    width: 100%;
   }
   
-  input, button {
-    margin: 10px 0;
+  /* Header and sections */
+  h1, h2, h3 {
+    margin-bottom: 16px;
+  }
+  
+  p {
+    margin-bottom: 12px;
+    color: #444;
+  }
+  
+  /* Form styling */
+  form {
+    background: #fff;
+    padding: 20px;
+    margin-bottom: 24px;
+    border-radius: 12px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  }
+  
+  input[type="text"],
+  input[name="due_date"],
+  input[type="number"] {
+    width: 100%;
     padding: 10px;
-    width: 80%;
+    margin: 8px 0 16px;
     border: 1px solid #ccc;
-    border-radius: 5px;
+    border-radius: 8px;
+    font-size: 1rem;
+  }
+  
+  input[type="submit"],
+  button {
+    padding: 10px 16px;
+    font-size: 1rem;
+    background-color: #10a37f;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+  
+  input[type="submit"]:hover,
+  button:hover {
+    background-color: #0e8c6c;
+  }
+  
+  /* Toggle button */
+  .toggle-btn {
+    background: none;
+    color: #10a37f;
+    border: none;
+    font-size: 1rem;
+    font-weight: bold;
+    cursor: pointer;
+    margin-bottom: 12px;
+    padding: 0;
+  }
+  
+  /* Task list styling */
+  ul.task-list {
+    list-style: none;
+    padding-left: 0;
+  }
+  
+  .task-item {
+    background: #fff;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  
+  .task-meta {
+    font-size: 0.9rem;
+    color: #777;
+    margin-top: 4px;
+  }
+  
+  .actions {
+    margin-top: 10px;
+  }
+  
+  .actions form {
+    display: inline;
+    margin-right: 8px;
+  }
+  
+  /* Error message */
+  .error {
+    color: red;
+    font-weight: bold;
+    margin-bottom: 12px;
   }
   
