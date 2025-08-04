@@ -89,41 +89,27 @@ def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
     conn.commit()
 
 
-
 @app.route('/')
 def home():
     user = session.get('user')
     if user:
-        return render_template_string('''
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>Welcome</title>
-            <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-        </head>
-        <body>
-            <h1>Welcome, {{ user['username'] }}#{{ user['discriminator'] }}!</h1>
-            <p>Your Discord ID is: {{ user['id'] }}</p>
-            <a href="/dashboard">Go to dashboard</a><br>
-            <a href="/logout">Logout</a>
-        </body>
-        </html>
-        ''', user=user)
-    
+        return redirect('/dashboard')
     return render_template_string('''
     <!DOCTYPE html>
     <html>
     <head>
-        <title>Login</title>
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     </head>
-    <body>
-        <h2>Welcome to Task Tracker</h2>
-        <p>Please log in using your Discord account.</p>
-        <a href="/login"><button>Login with Discord</button></a>
+    <body class="login">
+        <div class="login-box">
+            <h1>Welcome to TaskBoard</h1>
+            <p>Please log in<br>with your Discord</p>
+            <a href="/login" class="login-button">Login with Discord</a>
+        </div>
     </body>
     </html>
     ''')
+
 
 
 
@@ -179,82 +165,65 @@ def dashboard():
     ).fetchall()
 
     return render_template_string('''
-      <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
 <head>
     <title>Dashboard</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<div class="container">
-    <h2>Dashboard for {{ user['username'] }}#{{ user['discriminator'] }}</h2>
-    <p>Discord ID: {{ user['id'] }}</p>
+    <h1>Welcome {{ user['username'] }}</h1>
 
     {% if error_msg %}
         <p class="error">{{ error_msg }}</p>
     {% endif %}
 
-    <form method="POST">
-        <label>Task</label>
-        <input type="text" name="task" required>
-
-        <label>Due Date (e.g., Aug 30 2025)</label>
-        <input type="text" name="due_date" required>
-
-        <label>Reminders</label>
-        <input type="number" name="reminders" value="1" min="1">
-
-        <input type="submit" value="Add Task">
+    <form method="POST" class="task-form">
+        <input type="text" name="task" placeholder="Task name" required>
+        <input type="text" name="due_date" placeholder="Due date (e.g., Aug 31 2025)" required>
+        <input type="number" name="reminders" placeholder="#" min="1" value="1">
+        <input type="submit" value="Add">
     </form>
 
-    <button class="toggle-btn" onclick="toggleTasks()" id="toggle-btn">Show Active Tasks ▼</button>
+    <button class="toggle-btn" onclick="toggleTasks()" id="toggle-btn">Show Tasks ▼</button>
 
-    <div id="task-section" style="display: none;">
-        {% if tasks %}
-            <ul class="task-list">
-                {% for task in tasks %}
-                    <li class="task-item">
-                        <strong>{{ task['task'] }}</strong>
-                        <div class="task-meta">Due {{ task['due_date'] }} • {{ task['reminders'] }} reminder(s)</div>
-                        <div class="actions">
-                            <form method="POST" action="/delete_task">
-                                <input type="hidden" name="task_id" value="{{ task['id'] }}">
-                                <button type="submit">Delete</button>
-                            </form>
-                            <form method="GET" action="/edit_task/{{ task['id'] }}">
-                                <button type="submit">Edit</button>
-                            </form>
-                        </div>
-                    </li>
-                {% endfor %}
-            </ul>
+    <ul class="task-list" id="task-list">
+        {% for task in tasks %}
+            <li>
+                <strong>{{ task['task'] }}</strong><br>
+                Due: {{ task['due_date'] }} | {{ task['reminders'] }} reminder(s)
+                <form method="POST" action="/delete_task" style="display:inline;">
+                    <input type="hidden" name="task_id" value="{{ task['id'] }}">
+                    <button type="submit">Delete</button>
+                </form>
+                <form method="GET" action="/edit_task/{{ task['id'] }}" style="display:inline;">
+                    <button type="submit">Edit</button>
+                </form>
+            </li>
         {% else %}
             <p>No tasks yet.</p>
-        {% endif %}
-    </div>
+        {% endfor %}
+    </ul>
 
-    <br>
-    <a href="/logout"><button>Logout</button></a>
-</div>
+    <a href="/logout" class="logout">logout</a>
 
-<script>
-function toggleTasks() {
-    const section = document.getElementById('task-section');
-    const btn = document.getElementById('toggle-btn');
-    if (section.style.display === 'none') {
-        section.style.display = 'block';
-        btn.textContent = 'Hide Active Tasks ▲';
-    } else {
-        section.style.display = 'none';
-        btn.textContent = 'Show Active Tasks ▼';
-    }
-}
-</script>
+    <script>
+        function toggleTasks() {
+            const list = document.getElementById('task-list');
+            const btn = document.getElementById('toggle-btn');
+            if (list.style.display === 'none' || list.style.display === '') {
+                list.style.display = 'block';
+                btn.textContent = "Hide Tasks ▲";
+            } else {
+                list.style.display = 'none';
+                btn.textContent = "Show Tasks ▼";
+            }
+        }
+    </script>
 </body>
 </html>
 
-
-    ''', user=user, tasks=tasks, error_msg=error_msg)
+ ''', user=user, tasks=tasks, error_msg=error_msg)
 
 
 @app.route('/delete_task', methods=['POST'])

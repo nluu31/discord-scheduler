@@ -132,7 +132,7 @@ async def reminder_loop():
             try:
                 user = await client.fetch_user(user_id)
                 if user:
-                    await user.send(f"⏰ Alert: Your task **{task_name}** is due today (or was due on {due_date.strftime("%B %d, %Y")})!")
+                    await user.send(f"⏰ Alert: Your task **{task_name}** is due today (or was due on {task.strftime("%B %d, %Y")})!")
                 cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
                 conn.commit()
             except Exception as e:
@@ -200,13 +200,18 @@ async def on_message(message):
 
         if not tasks:
             await message.channel.send("You have no upcoming tasks!")
-        else:
-            output = "📋 Your Upcoming Tasks:\n"
-            for task in tasks:
-                due = datetime.strptime(task['due_date'], "%Y-%m-%d")
-                delta = (due.date() - datetime.today().date()).days
-                output += f"🌌 **{task['task']}** due on **{due.strftime('%A, %b %d, %Y')}** — in {delta} day(s)\n"
-            await message.channel.send(output)
+            return
+
+        output = "📋 Your Upcoming Tasks:\n"
+        today_date = datetime.today().date()
+
+        for task in tasks:
+            # due_date stored in YYYY-MM-DD, so parse accordingly
+            due_date = datetime.strptime(task['due_date'], "%Y-%m-%d").date()
+            days_left = (due_date - today_date).days
+            output += f"🌌 **{task['task']}** due on **{due_date.strftime('%A, %b %d, %Y')}** — in {days_left} day(s)\n"
+
+        await message.channel.send(output)
 
 
     if message.content.startswith('!schedule'):
