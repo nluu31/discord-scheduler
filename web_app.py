@@ -208,17 +208,20 @@ def dashboard():
     <a href="/logout" class="logout">logout</a>
 
     <script>
-        function toggleTasks() {
-            const list = document.getElementById('task-list');
-            const btn = document.getElementById('toggle-btn');
-            if (list.style.display === 'none' || list.style.display === '') {
-                list.style.display = 'block';
-                btn.textContent = "Hide Tasks ▲";
-            } else {
-                list.style.display = 'none';
-                btn.textContent = "Show Tasks ▼";
-            }
+       function toggleTasks() {
+        const list = document.getElementById('task-list');
+        const btn = document.getElementById('toggle-btn');
+        const body = document.body;
+        
+        list.classList.toggle('show');
+        body.classList.toggle('tasks-shown');
+        
+        if (list.classList.contains('show')) {
+            btn.textContent = "Hide Tasks ▲";
+        } else {
+            btn.textContent = "Show Tasks ▼";
         }
+    }
     </script>
 </body>
 </html>

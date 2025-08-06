@@ -1,4 +1,4 @@
-/* Reset and basics */
+/* ===== RESET & BASE STYLES ===== */
 * {
     margin: 0;
     padding: 0;
@@ -8,22 +8,67 @@
   body {
     font-family: "Segoe UI", sans-serif;
     background-color: #f7f7f7;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 40px 16px;
-    min-height: 100vh;
-    position: relative;
+    padding: 20px;
   }
   
-  /* Welcome header */
+  /* ===== LOGIN PAGE ===== */
+  body.login {
+    justify-content: center;
+    background-color: #f7f7f7;
+  }
+  
+  .login-box {
+    text-align: center;
+    padding: 40px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    max-width: 400px;
+    width: 100%;
+    animation: fadeIn 0.5s ease-out;
+  }
+  
+  .login-box h1 {
+    margin-bottom: 20px;
+    color: #333;
+  }
+  
+  .login-box p {
+    margin-bottom: 30px;
+    color: #666;
+  }
+  
+  .login-button {
+    display: inline-block;
+    background-color: #5865F2;
+    color: white;
+    padding: 12px 24px;
+    border-radius: 8px;
+    text-decoration: none;
+    font-weight: bold;
+    transition: 
+      background-color 0.2s,
+      transform 0.2s;
+  }
+  
+  .login-button:hover {
+    background-color: #4752C4;
+    transform: translateY(-2px);
+  }
+  
+  /* ===== DASHBOARD ===== */
   h1 {
     font-size: 2.5rem;
-    margin-bottom: 40px;
+    margin-bottom: 20px;
     text-align: center;
+    color: #333;
   }
   
-  /* Form container in a pill-like group */
+  /* Task input form (fixed position) */
   form.task-form {
     display: flex;
     align-items: center;
@@ -32,21 +77,27 @@
     padding: 16px 24px;
     border-radius: 999px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    margin-bottom: 24px;
+    margin-bottom: 0; /* Remove extra space */
+    width: 100%;
+    max-width: 600px;
+    position: relative;
+    z-index: 2; /* Ensure it stays above the task list */
   }
   
   form.task-form input[type="text"],
   form.task-form input[type="number"] {
     padding: 8px 12px;
     font-size: 1rem;
-    border: 1px solid #ccc;
+    border: 1px solid #ddd;
     border-radius: 8px;
-    min-width: 100px;
+    flex-grow: 1;
+    transition: border-color 0.2s;
   }
   
-  form.task-form input[name="task"] {
-    font-weight: bold;
-    min-width: 200px;
+  form.task-form input[type="text"]:focus,
+  form.task-form input[type="number"]:focus {
+    border-color: #10a37f;
+    outline: none;
   }
   
   form.task-form input[type="submit"] {
@@ -56,21 +107,17 @@
     border: none;
     border-radius: 8px;
     cursor: pointer;
+    transition: 
+      background-color 0.2s,
+      transform 0.2s;
   }
   
   form.task-form input[type="submit"]:hover {
     background-color: #0d8e6c;
+    transform: translateY(-1px);
   }
   
-  /* Error styling */
-  .error {
-    color: red;
-    margin-bottom: 16px;
-    font-weight: bold;
-    text-align: center;
-  }
-  
-  /* Task dropdown */
+  /* Toggle button */
   .toggle-btn {
     background: none;
     border: none;
@@ -78,16 +125,36 @@
     font-weight: bold;
     color: #10a37f;
     cursor: pointer;
-    margin-bottom: 12px;
+    margin: 12px 0;
+    transition: color 0.2s;
   }
   
+  .toggle-btn:hover {
+    color: #0d8e6c;
+  }
+  
+  /* Task list (animated dropdown) */
   .task-list {
-    display: none;
     max-width: 600px;
     width: 100%;
-    margin-top: 16px;
     list-style: none;
     padding: 0;
+    margin-top: 0;
+    max-height: 0;
+    opacity: 0;
+    overflow: hidden;
+    transform: translateY(-10px);
+    transition: 
+      max-height 0.4s ease-out,
+      opacity 0.3s ease-out,
+      transform 0.3s ease-out;
+  }
+  
+  .task-list.show {
+    max-height: 2000px; /* Arbitrarily large to fit content */
+    opacity: 1;
+    transform: translateY(0);
+    margin-top: 16px; /* Space between form and list */
   }
   
   .task-list li {
@@ -95,15 +162,154 @@
     padding: 14px 18px;
     margin-bottom: 10px;
     border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    transition: 
+      transform 0.2s,
+      box-shadow 0.2s;
+  }
+  
+  .task-list li:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  }
+  
+  .task-list li button {
+    background: #f0f0f0;
+    border: none;
+    padding: 4px 8px;
+    border-radius: 4px;
+    margin-left: 8px;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  
+  .task-list li button:hover {
+    background: #e0e0e0;
+  }
+  
+  /* Error message */
+  .error {
+    color: #ff4444;
+    margin-bottom: 16px;
+    font-weight: bold;
+    text-align: center;
+    animation: shake 0.5s;
   }
   
   /* Logout link */
   .logout {
-    position: absolute;
+    position: fixed;
     bottom: 20px;
     left: 20px;
     color: #888;
     font-size: 0.9rem;
+    text-decoration: none;
+    transition: color 0.2s;
   }
   
+  .logout:hover {
+    color: #555;
+  }
+  
+  /* ===== ANIMATIONS ===== */
+  @keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20%, 60% { transform: translateX(-5px); }
+    40%, 80% { transform: translateX(5px); }
+  }
+
+  /* ===== FIXED CENTERED LAYOUT ===== */
+body {
+    font-family: "Segoe UI", sans-serif;
+    background-color: #f7f7f7;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center; /* Center vertically */
+    padding: 20px;
+    margin: 0;
+  }
+  
+  /* Task form adjustments */
+  form.task-form {
+    display: flex;
+    flex-wrap: wrap; /* Allow wrapping on small screens */
+    align-items: center;
+    gap: 8px; /* Reduced gap */
+    background: white;
+    padding: 12px 20px;
+    border-radius: 999px;
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    max-width: 600px;
+    margin: 0 auto; /* Center horizontally */
+  }
+  
+  form.task-form input[type="text"],
+  form.task-form input[type="number"] {
+    padding: 8px 12px;
+    font-size: 0.95rem; /* Slightly smaller */
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    flex: 1 1 120px; /* Grow, shrink, minimum width */
+    min-width: 0; /* Prevent overflow */
+  }
+  
+  form.task-form input[name="task"] {
+    flex: 2 1 180px; /* More space for task name */
+  }
+  
+  form.task-form input[type="number"] {
+    max-width: 60px; /* Limit width for reminders */
+    text-align: center;
+  }
+  
+  form.task-form input[type="submit"] {
+    flex: 0 0 auto; /* Don't grow or shrink */
+    padding: 8px 16px;
+  }
+  
+  /* Dashboard header spacing */
+  h1 {
+    margin-bottom: 24px !important;
+  }
+  
+  /* Toggle button alignment */
+  .toggle-btn {
+    margin: 16px 0;
+    align-self: center;
+  }
+
+  /* ===== NEW STABLE INPUT BOX RULES ===== */
+body:not(.login) {
+  justify-content: flex-start;
+  padding-top: 20vh; /* Centers form without pushing content */
+}
+
+form.task-form {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 0;
+}
+
+.task-list {
+  margin-top: -10px; /* Tucks under the form */
+  transform: none !important; /* Removes upward shift */
+  transition: max-height 0.4s ease-out, opacity 0.3s ease-out;
+}
+
+/* Mobile overflow fix */
+form.task-form {
+  flex-wrap: wrap;
+}
+form.task-form input[type="text"],
+form.task-form input[type="number"] {
+  flex: 1 1 120px;
+  min-width: 0;
+}
