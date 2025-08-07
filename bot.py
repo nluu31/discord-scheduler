@@ -123,6 +123,14 @@ async def reminder_loop():
         """, (today_str,))
         to_be_removed = cursor.fetchall()
 
+        cursor.execute("""
+            SELECT tasks.id, tasks.user_id, tasks.task, tasks.due_date
+            FROM tasks
+            JOIN reminder_dates ON tasks.id = reminder_dates.task_id
+            WHERE reminder_dates.reminder_date < ?
+        """, (today_str,))
+        reminders_past_due = cursor.fetchall()
+
         for task in to_be_removed:
             user_id = int(task['user_id'])
             task_name = task['task']
@@ -132,11 +140,11 @@ async def reminder_loop():
             try:
                 user = await client.fetch_user(user_id)
                 if user:
-                    await user.send(f"⏰ Alert: Your task **{task_name}** is due today (or was due on {task.strftime("%B %d, %Y")})!")
+                    await user.send(f"⏰ Alert: Your task **{task_name}** is due today (or was due on {due.strftime("%B %d, %Y")})!")
                 cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
                 conn.commit()
             except Exception as e:
-                print(f"Failed to send reminder to {user_id}: {e}")
+                print(f"Failed to remove past due assignment to {user_id}: {e}")
 
 
 
@@ -146,7 +154,6 @@ async def reminder_loop():
             task_name = reminder['task']
             due_date = datetime.strptime(reminder['due_date'], "%Y-%m-%d")
             
-
             try:
                 user = await client.fetch_user(user_id)
                 if user:
@@ -161,6 +168,17 @@ async def reminder_loop():
 
             except Exception as e:
                 print(f"Failed to send reminder to {user_id}: {e}")
+
+        for past_due in reminders_past_due:
+            try:
+                cursor.execute(
+                    "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date = ?",
+                    (past_due['id'], today_str)
+                )
+                conn.commit()
+            except Exception as e:
+                priny(f"Failed to remove past-due reminder to {user_id}: {e}")
+                
         conn.close()
         await asyncio.sleep(3600)
 
