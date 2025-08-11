@@ -140,7 +140,7 @@ async def reminder_loop():
             try:
                 user = await client.fetch_user(user_id)
                 if user:
-                    await user.send(f"⏰ Alert: Your task **{task_name}** is due today (or was due on {due.strftime("%B %d, %Y")})!")
+                    await user.send(f"⏰ Alert: Your task **{task_name}** is due today (or was due on {due_date.strftime("%B %d, %Y")})!")
                 cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
                 conn.commit()
             except Exception as e:
@@ -172,7 +172,7 @@ async def reminder_loop():
         for past_due in reminders_past_due:
             try:
                 cursor.execute(
-                    "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date = ?",
+                    "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date < ?",
                     (past_due['id'], today_str)
                 )
                 conn.commit()
