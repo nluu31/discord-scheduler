@@ -104,83 +104,103 @@ async def on_ready():
 async def reminder_loop():
     await client.wait_until_ready()
     while not client.is_closed():
-        today_str = datetime.today().strftime("%Y-%m-%d")  # ISO format for reminders
-
+        today_str = datetime.today().strftime("%Y-%m-%d")
         conn = get_db_connection()
         cursor = conn.cursor()
-        # Find all reminders matching today
-        cursor.execute("""
-            SELECT tasks.id, tasks.user_id, tasks.task, tasks.due_date
-            FROM tasks
-            JOIN reminder_dates ON tasks.id = reminder_dates.task_id
-            WHERE reminder_dates.reminder_date = ?
-        """, (today_str,))
-        reminders = cursor.fetchall()
-        cursor.execute("""
+
+        # Fetch data
+        reminders = await fetch_todays_reminders(cursor, today_str)
+        to_be_removed = await fetch_past_due_tasks(cursor, today_str)
+        reminders_past_due = await fetch_past_due_reminders(cursor, today_str)
+
+        # Process tasks
+        await process_past_due_tasks(client, cursor, to_be_removed, today_str)
+        await process_todays_reminders(client, cursor, reminders, today_str)
+        await cleanup_past_due_reminders(cursor, reminders_past_due, today_str)
+
+        conn.close()
+        await asyncio.sleep(3600)
+
+
+async def fetch_todays_reminders(cursor, today_str):
+    cursor.execute("""
+        SELECT tasks.id, tasks.user_id, tasks.task, tasks.due_date
+        FROM tasks
+        JOIN reminder_dates ON tasks.id = reminder_dates.task_id
+        WHERE reminder_dates.reminder_date = ?
+    """, (today_str,))
+    return cursor.fetchall()
+
+
+async def fetch_past_due_tasks(cursor, today_str):
+    cursor.execute("""
         SELECT tasks.id, tasks.user_id, tasks.task, tasks.due_date
         FROM tasks
         WHERE tasks.due_date <= ?
-        """, (today_str,))
-        to_be_removed = cursor.fetchall()
-
-        cursor.execute("""
-            SELECT tasks.id, tasks.user_id, tasks.task, tasks.due_date
-            FROM tasks
-            JOIN reminder_dates ON tasks.id = reminder_dates.task_id
-            WHERE reminder_dates.reminder_date < ?
-        """, (today_str,))
-        reminders_past_due = cursor.fetchall()
-
-        for task in to_be_removed:
-            user_id = int(task['user_id'])
-            task_name = task['task']
-            task_id = task['id']  # extract the actual ID for deletion
-            due_date = datetime.strptime(task['due_date'], "%Y-%m-%d")
-
-            try:
-                user = await client.fetch_user(user_id)
-                if user:
-                    await user.send(f"⏰ Alert: Your task **{task_name}** is due today (or was due on {due_date.strftime("%B %d, %Y")})!")
-                cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
-                conn.commit()
-            except Exception as e:
-                print(f"Failed to remove past due assignment to {user_id}: {e}")
+    """, (today_str,))
+    return cursor.fetchall()
 
 
+async def fetch_past_due_reminders(cursor, today_str):
+    cursor.execute("""
+        SELECT tasks.id, tasks.user_id, tasks.task, tasks.due_date
+        FROM tasks
+        JOIN reminder_dates ON tasks.id = reminder_dates.task_id
+        WHERE reminder_dates.reminder_date < ?
+    """, (today_str,))
+    return cursor.fetchall()
 
-        # Remove each reminder_date after notifying the user
-        for reminder in reminders:
-            user_id = int(reminder['user_id'])
-            task_name = reminder['task']
-            due_date = datetime.strptime(reminder['due_date'], "%Y-%m-%d")
-            
-            try:
-                user = await client.fetch_user(user_id)
-                if user:
-                    await user.send(f"⏰ Reminder: Your task **{task_name}** is coming up! Due on {due_date.strftime("%B %d, %Y")}.")
-                
-                # Delete the sent reminder date so it won't be sent again
-                cursor.execute(
-                    "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date = ?",
-                    (reminder['id'], today_str)
+
+async def process_past_due_tasks(client, cursor, tasks, today_str):
+    for task in tasks:
+        user_id = int(task['user_id'])
+        task_name = task['task']
+        task_id = task['id']
+        due_date = datetime.strptime(task['due_date'], "%Y-%m-%d")
+
+        try:
+            user = await client.fetch_user(user_id)
+            if user:
+                await user.send(
+                    f"⏰ Alert: Your task **{task_name}** is due today (or was due on {due_date.strftime('%B %d, %Y')})!"
                 )
-                conn.commit()
+            cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
+            cursor.connection.commit()
+        except Exception as e:
+            print(f"Failed to process past-due task for {user_id}: {e}")
 
-            except Exception as e:
-                print(f"Failed to send reminder to {user_id}: {e}")
 
-        for past_due in reminders_past_due:
-            try:
-                cursor.execute(
-                    "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date < ?",
-                    (past_due['id'], today_str)
+async def process_todays_reminders(client, cursor, reminders, today_str):
+    for reminder in reminders:
+        user_id = int(reminder['user_id'])
+        task_name = reminder['task']
+        due_date = datetime.strptime(reminder['due_date'], "%Y-%m-%d")
+
+        try:
+            user = await client.fetch_user(user_id)
+            if user:
+                await user.send(
+                    f"⏰ Reminder: Your task **{task_name}** is coming up! Due on {due_date.strftime('%B %d, %Y')}."
                 )
-                conn.commit()
-            except Exception as e:
-                priny(f"Failed to remove past-due reminder to {user_id}: {e}")
-                
-        conn.close()
-        await asyncio.sleep(3600)
+            cursor.execute(
+                "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date = ?",
+                (reminder['id'], today_str)
+            )
+            cursor.connection.commit()
+        except Exception as e:
+            print(f"Failed to send reminder to {user_id}: {e}")
+
+
+async def cleanup_past_due_reminders(cursor, reminders_past_due, today_str):
+    for past_due in reminders_past_due:
+        try:
+            cursor.execute(
+                "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date < ?",
+                (past_due['id'], today_str)
+            )
+            cursor.connection.commit()
+        except Exception as e:
+            print(f"Failed to remove past-due reminder for task {past_due['id']}: {e}")
 
 
 
