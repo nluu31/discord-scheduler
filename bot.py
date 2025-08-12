@@ -162,7 +162,7 @@ async def process_past_due_tasks(client, cursor, tasks, today_str):
             user = await client.fetch_user(user_id)
             if user:
                 await user.send(
-                    f"⏰ Alert: Your task **{task_name}** is due today (or was due on {due_date.strftime('%B %d, %Y')})!"
+                    f"⚠️ Alert: Your task **{task_name}** is due today (or was due on {due_date.strftime('%B %d, %Y')})!"
                 )
             cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
             cursor.connection.commit()
@@ -240,14 +240,14 @@ async def on_message(message):
             await message.channel.send("You have no upcoming tasks!")
             return
 
-        output = "📋 Your Upcoming Tasks:\n"
+        output = "📋 Your Upcoming Tasks:\n\n"
         today_date = datetime.today().date()
 
         for task in tasks:
             # due_date stored in YYYY-MM-DD, so parse accordingly
             due_date = datetime.strptime(task['due_date'], "%Y-%m-%d").date()
             days_left = (due_date - today_date).days
-            output += f"🌌 **{task['task']}** due on **{due_date.strftime('%A, %b %d, %Y')}** — in {days_left} day(s)\n"
+            output += f"🌐 **{task['task']}** due on **{due_date.strftime('%A, %b %d, %Y')}** — in {days_left} day(s)\n"
 
         await message.channel.send(output)
 
