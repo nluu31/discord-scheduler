@@ -243,7 +243,8 @@ async def on_message(message):
         output = "📋 Your Upcoming Tasks:\n\n"
         today_date = datetime.today().date()
 
-        for task in tasks:
+        sortedTasks = sorted(tasks, key = lambda x : x['due_date'])
+        for task in sortedTasks:
             # due_date stored in YYYY-MM-DD, so parse accordingly
             due_date = datetime.strptime(task['due_date'], "%Y-%m-%d").date()
             days_left = (due_date - today_date).days
