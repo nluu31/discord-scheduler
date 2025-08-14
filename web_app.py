@@ -164,6 +164,7 @@ def dashboard():
         (user_id,)
     ).fetchall()
 
+    sortedTasks = sorted(tasks, key = lambda x : x['due_date'])
     return render_template_string('''
 <!DOCTYPE html>
 <html>
@@ -188,7 +189,7 @@ def dashboard():
     <button class="toggle-btn" onclick="toggleTasks()" id="toggle-btn">Show Tasks ▼</button>
 
     <ul class="task-list" id="task-list">
-        {% for task in tasks %}
+        {% for task in sortedTasks %}
             <li>
                 <strong>{{ task['task'] }}</strong><br>
                 Due: {{ task['due_date'] }} | {{ task['reminders'] }} reminder(s)
@@ -226,7 +227,7 @@ def dashboard():
 </body>
 </html>
 
- ''', user=user, tasks=tasks, error_msg=error_msg)
+ ''', user=user, sortedTasks=sortedTasks, error_msg=error_msg)
 
 
 @app.route('/delete_task', methods=['POST'])
