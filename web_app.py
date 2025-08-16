@@ -173,7 +173,8 @@ def dashboard():
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>Welcome {{ user['username'] }}</h1>
+     
+    <h1>Please Enter your Tasks:  </h1>
 
     {% if error_msg %}
         <p class="error">{{ error_msg }}</p>
@@ -206,7 +207,8 @@ def dashboard():
         {% endfor %}
     </ul>
 
-    <a href="/logout" class="logout">logout</a>
+    
+    <a href="/logout" class="logout">logout {{ user['username'] }}</a>
 
     <script>
        function toggleTasks() {

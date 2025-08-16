@@ -5,210 +5,188 @@
     box-sizing: border-box;
   }
   
+  :root {
+    --primary: #4A6CF7;
+    --primary-hover: #3A5CE4;
+    --text: #2D3748;
+    --text-light: #718096;
+    --bg: #F8FAFC;
+    --card-bg: #FFFFFF;
+    --border: #E2E8F0;
+    --shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+    --radius: 12px;
+  }
+  
   body {
-    font-family: "Segoe UI", sans-serif;
-    background-color: #f7f7f7;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background-color: var(--bg);
+    color: var(--text);
     min-height: 100vh;
+    line-height: 1.5;
     display: flex;
     flex-direction: column;
     align-items: center;
-    padding: 20px;
+    justify-content: flex-start; /* Changed from center */
+    padding: 2rem;
+    padding-top: 10vh; /* Push content down slightly */
   }
   
-  /* ===== LOGIN PAGE ===== */
-  body.login {
-    justify-content: center;
-    background-color: #f7f7f7;
-  }
-  
-  .login-box {
-    text-align: center;
-    padding: 40px;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    max-width: 400px;
+  /* ===== DASHBOARD STRUCTURE ===== */
+  .dashboard {
     width: 100%;
-    animation: fadeIn 0.5s ease-out;
-  }
-  
-  .login-box h1 {
-    margin-bottom: 20px;
-    color: #333;
-  }
-  
-  .login-box p {
-    margin-bottom: 30px;
-    color: #666;
-  }
-  
-  .login-button {
-    display: inline-block;
-    background-color: #5865F2;
-    color: white;
-    padding: 12px 24px;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: bold;
-    transition: 
-      background-color 0.2s,
-      transform 0.2s;
-  }
-  
-  .login-button:hover {
-    background-color: #4752C4;
-    transform: translateY(-2px);
-  }
-  
-  /* ===== DASHBOARD ===== */
-  h1 {
-    font-size: 2.5rem;
-    margin-bottom: 20px;
-    text-align: center;
-    color: #333;
-  }
-  
-  /* Task input form (fixed position) */
-  form.task-form {
+    max-width: 500px;
     display: flex;
+    flex-direction: column;
     align-items: center;
-    gap: 12px;
-    background: white;
-    padding: 16px 24px;
-    border-radius: 999px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    margin-bottom: 0; /* Remove extra space */
-    width: 100%;
-    max-width: 600px;
     position: relative;
-    z-index: 2; /* Ensure it stays above the task list */
   }
   
-  form.task-form input[type="text"],
-  form.task-form input[type="number"] {
-    padding: 8px 12px;
-    font-size: 1rem;
-    border: 1px solid #ddd;
+  /* ===== FIXED FORM CONTAINER ===== */
+  .task-form-container {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    position: relative;
+    z-index: 2;
+    background: var(--bg);
+    padding-bottom: 0.5rem;
+  }
+  
+  .task-form {
+    display: flex;
+    gap: 0.75rem;
+    background: var(--card-bg);
+    padding: 1rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    width: 75%;
+    margin: 0 auto;
+  }
+  
+  .task-form input {
+    padding: 0.75rem;
+    border: 1px solid var(--border);
     border-radius: 8px;
-    flex-grow: 1;
-    transition: border-color 0.2s;
+    font-size: 0.95rem;
+    height: 44px;
   }
   
-  form.task-form input[type="text"]:focus,
-  form.task-form input[type="number"]:focus {
-    border-color: #10a37f;
-    outline: none;
+  .task-form input[type="text"] {
+    flex: 2;
+    min-width: 0;
   }
   
-  form.task-form input[type="submit"] {
-    background-color: #10a37f;
+  .task-form input[type="number"] {
+    flex: 1;
+    max-width: 80px;
+    text-align: center;
+  }
+  
+  .task-form input[type="submit"] {
+    background: var(--primary);
     color: white;
-    padding: 8px 16px;
     border: none;
-    border-radius: 8px;
     cursor: pointer;
-    transition: 
-      background-color 0.2s,
-      transform 0.2s;
+    padding: 0 1.5rem;
+    transition: background 0.2s;
+    flex-shrink: 0;
   }
   
-  form.task-form input[type="submit"]:hover {
-    background-color: #0d8e6c;
-    transform: translateY(-1px);
+  .task-form input[type="submit"]:hover {
+    background: var(--primary-hover);
   }
   
-  /* Toggle button */
+  /* ===== TOGGLE BUTTON ===== */
   .toggle-btn {
     background: none;
     border: none;
-    font-size: 1rem;
-    font-weight: bold;
-    color: #10a37f;
+    color: var(--primary);
+    font-weight: 500;
     cursor: pointer;
-    margin: 12px 0;
-    transition: color 0.2s;
+    margin: 1rem 0;
+    padding: 0.5rem 1rem;
+    border-radius: 6px;
+    transition: background 0.2s;
   }
   
   .toggle-btn:hover {
-    color: #0d8e6c;
+    background: rgba(74, 108, 247, 0.1);
   }
   
-  /* Task list (animated dropdown) */
+  /* ===== TASK LIST (EXPANDS DOWNWARD) ===== */
+  .task-list-wrapper {
+    width: 85%;
+    position: relative;
+    margin-top: -10px;
+  }
+  
   .task-list {
-    max-width: 600px;
-    width: 100%;
+    width: 50%;
     list-style: none;
     padding: 0;
-    margin-top: 0;
-    max-height: 0;
     opacity: 0;
+    max-height: 0;
     overflow: hidden;
-    transform: translateY(-10px);
+    transform-origin: top;
     transition: 
-      max-height 0.4s ease-out,
       opacity 0.3s ease-out,
-      transform 0.3s ease-out;
+      max-height 0.4s ease-out;
   }
   
   .task-list.show {
-    max-height: 2000px; /* Arbitrarily large to fit content */
     opacity: 1;
-    transform: translateY(0);
-    margin-top: 16px; /* Space between form and list */
+    max-height: 2000px;
   }
   
   .task-list li {
-    background: white;
-    padding: 14px 18px;
-    margin-bottom: 10px;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
-    transition: 
-      transform 0.2s,
-      box-shadow 0.2s;
+    background: var(--card-bg);
+    padding: 1rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 0.75rem;
+    transform: translateY(-10px);
+    transition: transform 0.3s ease-out;
+    border-left: 3px solid var(--primary);
+    padding-left: 0.75rem; /* Adjust to match border */
   }
   
-  .task-list li:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  .task-list.show li {
+    transform: translateY(0);
   }
   
   .task-list li button {
-    background: #f0f0f0;
+    background: none;
     border: none;
-    padding: 4px 8px;
-    border-radius: 4px;
-    margin-left: 8px;
+    color: var(--text-light);
     cursor: pointer;
-    transition: background-color 0.2s;
+    transition: color 0.2s;
   }
   
   .task-list li button:hover {
-    background: #e0e0e0;
+    color: var(--text);
   }
   
-  /* Error message */
+  /* ===== UTILITY CLASSES ===== */
   .error {
-    color: #ff4444;
-    margin-bottom: 16px;
-    font-weight: bold;
+    color: #EF4444;
+    margin-bottom: 1rem;
     text-align: center;
-    animation: shake 0.5s;
+    font-weight: 500;
   }
   
-  /* Logout link */
   .logout {
     position: fixed;
-    bottom: 20px;
-    left: 20px;
-    color: #888;
-    font-size: 0.9rem;
+    bottom: 1.5rem;
+    left: 1.5rem;
+    color: var(--text-light);
     text-decoration: none;
+    font-size: 0.9rem;
     transition: color 0.2s;
   }
   
   .logout:hover {
-    color: #555;
+    color: var(--text);
   }
   
   /* ===== ANIMATIONS ===== */
@@ -216,100 +194,97 @@
     from { opacity: 0; transform: translateY(10px); }
     to { opacity: 1; transform: translateY(0); }
   }
-  
-  @keyframes shake {
-    0%, 100% { transform: translateX(0); }
-    20%, 60% { transform: translateX(-5px); }
-    40%, 80% { transform: translateX(5px); }
-  }
 
-  /* ===== FIXED CENTERED LAYOUT ===== */
-body {
-    font-family: "Segoe UI", sans-serif;
-    background-color: #f7f7f7;
-    min-height: 100vh;
+  /* ===== TASK ITEM STYLES ===== */
+.task-list li {
     display: flex;
-    flex-direction: column;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center; /* Center vertically */
-    padding: 20px;
-    margin: 0;
-  }
-  
-  /* Task form adjustments */
-  form.task-form {
+    padding: 1.25rem;
+    background: var(--card-bg);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 0.75rem;
+}
+
+.task-content {
+    flex: 1;
+}
+
+.task-meta {
     display: flex;
-    flex-wrap: wrap; /* Allow wrapping on small screens */
-    align-items: center;
-    gap: 8px; /* Reduced gap */
-    background: white;
-    padding: 12px 20px;
-    border-radius: 999px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+    gap: 1rem;
+    margin-top: 0.5rem;
+    font-size: 0.9rem;
+    color: var(--text-light);
+}
+
+.task-actions {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.edit-btn, .delete-btn {
+    padding: 0.5rem 1rem;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.edit-btn {
+    background: rgba(74, 108, 247, 0.1);
+    color: var(--primary);
+}
+
+.delete-btn {
+    background: rgba(239, 68, 68, 0.1);
+    color: #EF4444;
+}
+
+.edit-btn:hover {
+    background: rgba(74, 108, 247, 0.2);
+}
+
+.delete-btn:hover {
+    background: rgba(239, 68, 68, 0.2);
+}
+
+/* ===== EDIT FORM STYLES ===== */
+.edit-form-container {
     width: 100%;
-    max-width: 600px;
-    margin: 0 auto; /* Center horizontally */
-  }
-  
-  form.task-form input[type="text"],
-  form.task-form input[type="number"] {
-    padding: 8px 12px;
-    font-size: 0.95rem; /* Slightly smaller */
-    border: 1px solid #ddd;
+    max-width: 500px;
+    background: var(--card-bg);
+    padding: 2rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.cancel-btn {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    background: var(--bg);
+    color: var(--text-light);
     border-radius: 8px;
-    flex: 1 1 120px; /* Grow, shrink, minimum width */
-    min-width: 0; /* Prevent overflow */
-  }
-  
-  form.task-form input[name="task"] {
-    flex: 2 1 180px; /* More space for task name */
-  }
-  
-  form.task-form input[type="number"] {
-    max-width: 60px; /* Limit width for reminders */
+    text-decoration: none;
     text-align: center;
-  }
-  
-  form.task-form input[type="submit"] {
-    flex: 0 0 auto; /* Don't grow or shrink */
-    padding: 8px 16px;
-  }
-  
-  /* Dashboard header spacing */
-  h1 {
-    margin-bottom: 24px !important;
-  }
-  
-  /* Toggle button alignment */
-  .toggle-btn {
-    margin: 16px 0;
-    align-self: center;
-  }
-
-  /* ===== NEW STABLE INPUT BOX RULES ===== */
-body:not(.login) {
-  justify-content: flex-start;
-  padding-top: 20vh; /* Centers form without pushing content */
+    transition: all 0.2s;
 }
 
-form.task-form {
-  position: relative;
-  z-index: 2;
-  margin-bottom: 0;
+.cancel-btn:hover {
+    background: var(--border);
+    color: var(--text);
 }
 
-.task-list {
-  margin-top: -10px; /* Tucks under the form */
-  transform: none !important; /* Removes upward shift */
-  transition: max-height 0.4s ease-out, opacity 0.3s ease-out;
-}
-
-/* Mobile overflow fix */
-form.task-form {
-  flex-wrap: wrap;
-}
-form.task-form input[type="text"],
-form.task-form input[type="number"] {
-  flex: 1 1 120px;
-  min-width: 0;
+.empty-state {
+    text-align: center;
+    color: var(--text-light);
+    padding: 2rem;
 }
