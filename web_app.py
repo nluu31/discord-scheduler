@@ -196,7 +196,7 @@ def dashboard():
     <div class="task-content">
         <strong>{{ task['task'] }}</strong>
         <div class="task-meta">
-            <span>Due: {{ task['due_date'] }}</span>
+            <span>Due: {{ datetime.strptime(task['due_date'], '%Y-%m-%d').strftime('%A, %B %d, %Y') }}</span>
             <span>{{ task['reminders'] }} reminder(s)</span>
         </div>
     </div>
@@ -238,7 +238,7 @@ def dashboard():
 </body>
 </html>
 
- ''', user=user, sortedTasks=sortedTasks, error_msg=error_msg)
+ ''', user=user, sortedTasks=sortedTasks, error_msg=error_msg, datetime=datetime)
 
 
 @app.route('/delete_task', methods=['POST'])
