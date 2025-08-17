@@ -21,15 +21,15 @@
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     background-color: var(--bg);
     color: var(--text);
-    min-height: 100vh;
+    min-height: 75vh;
     line-height: 1.5;
     display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: flex-start; /* Changed from center */
+    justify-content: center; /* Center content vertically */
     padding: 2rem;
-    padding-top: 10vh; /* Push content down slightly */
-  }
+    position: relative; /* For logout positioning */
+}
   
   /* ===== DASHBOARD STRUCTURE ===== */
   .dashboard {
@@ -41,17 +41,6 @@
     position: relative;
   }
   
-  /* ===== FIXED FORM CONTAINER ===== */
-  .task-form-container {
-    width: 100%;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    position: relative;
-    z-index: 2;
-    background: var(--bg);
-    padding-bottom: 0.5rem;
-  }
   
   .task-form {
     display: flex;
@@ -104,25 +93,37 @@
     color: var(--primary);
     font-weight: 500;
     cursor: pointer;
-    margin: 1rem 0;
     padding: 0.5rem 1rem;
     border-radius: 6px;
     transition: background 0.2s;
+    position: relative;
+    z-index: 10; /* Ensure button stays above the dropdown */
+    display: block;
+    margin: 1rem auto; /* Center the button horizontally */
   }
   
   .toggle-btn:hover {
     background: rgba(74, 108, 247, 0.1);
   }
   
-  /* ===== TASK LIST (EXPANDS DOWNWARD) ===== */
-  .task-list-wrapper {
-    width: 85%;
+  /* ===== DROPDOWN CONTAINER ===== */
+  .dropdown-container {
     position: relative;
-    margin-top: -10px;
+    width: 100%;
+    max-width: 900px;
+    margin-top: 1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
   }
   
+  /* ===== TASK LIST (EXPANDS DOWNWARD ONLY) ===== */
   .task-list {
-    width: 50%;
+    position: absolute;
+    top: 100%; /* Position below the button instead of at top: 0 */
+    left: 50%;
+    transform: translateX(-50%);
+    width: 85%;
     list-style: none;
     padding: 0;
     opacity: 0;
@@ -132,6 +133,8 @@
     transition: 
       opacity 0.3s ease-out,
       max-height 0.4s ease-out;
+    z-index: 5;
+    margin-top: 0.5rem; /* Add some space between button and dropdown */
   }
   
   .task-list.show {
@@ -199,7 +202,7 @@
 .task-list li {
     display: flex;
     justify-content: space-between;
-    align-items: center;
+    align-items: flex-start;
     padding: 1.25rem;
     background: var(--card-bg);
     border-radius: var(--radius);

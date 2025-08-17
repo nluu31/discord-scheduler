@@ -187,25 +187,34 @@ def dashboard():
         <input type="submit" value="Add">
     </form>
 
+<div class ="dropdown-container">
     <button class="toggle-btn" onclick="toggleTasks()" id="toggle-btn">Show Tasks ▼</button>
 
     <ul class="task-list" id="task-list">
         {% for task in sortedTasks %}
             <li>
-                <strong>{{ task['task'] }}</strong><br>
-                Due: {{ task['due_date'] }} | {{ task['reminders'] }} reminder(s)
-                <form method="POST" action="/delete_task" style="display:inline;">
-                    <input type="hidden" name="task_id" value="{{ task['id'] }}">
-                    <button type="submit">Delete</button>
-                </form>
-                <form method="GET" action="/edit_task/{{ task['id'] }}" style="display:inline;">
-                    <button type="submit">Edit</button>
-                </form>
-            </li>
+    <div class="task-content">
+        <strong>{{ task['task'] }}</strong>
+        <div class="task-meta">
+            <span>Due: {{ task['due_date'] }}</span>
+            <span>{{ task['reminders'] }} reminder(s)</span>
+        </div>
+    </div>
+    <div class="task-actions">
+        <form method="POST" action="/delete_task" style="display:inline;">
+            <input type="hidden" name="task_id" value="{{ task['id'] }}">
+            <button type="submit" class="delete-btn">Delete</button>
+        </form>
+        <form method="GET" action="/edit_task/{{ task['id'] }}" style="display:inline;">
+            <button type="submit" class="edit-btn">Edit</button>
+        </form>
+    </div>
+</li>
         {% else %}
             <p>No tasks yet.</p>
         {% endfor %}
     </ul>
+
 
     
     <a href="/logout" class="logout">logout {{ user['username'] }}</a>
