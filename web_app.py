@@ -201,14 +201,11 @@ def dashboard():
         </div>
     </div>
     <div class="task-actions">
-        <form method="POST" action="/delete_task" style="display:inline;">
-            <input type="hidden" name="task_id" value="{{ task['id'] }}">
-            <button type="submit" class="delete-btn">Delete</button>
-        </form>
-        <form method="GET" action="/edit_task/{{ task['id'] }}" style="display:inline;">
-            <button type="submit" class="edit-btn">Edit</button>
-        </form>
-    </div>
+    <button class="delete-btn" data-task-id="{{ task['id'] }}">Delete</button>
+    <form method="GET" action="/edit_task/{{ task['id'] }}" style="display:inline;">
+        <button type="submit" class="edit-btn">Edit</button>
+    </form>
+</div>
 </li>
         {% else %}
             <p>No tasks yet.</p>
@@ -234,6 +231,74 @@ def dashboard():
             btn.textContent = "Show Tasks ▼";
         }
     }
+
+    document.addEventListener('DOMContentLoaded', function() {
+    // Handle delete clicks
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', async function(e) {
+            e.preventDefault();
+            const taskId = this.dataset.taskId;
+            const taskElement = this.closest('li');
+            
+            // Visual feedback
+            this.disabled = true;
+            this.textContent = 'Deleting...';
+            
+            try {
+                const response = await fetch(`/delete_task/${taskId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    credentials: 'same-origin'
+                });
+                
+                if (response.ok) {
+                    // Smooth removal animation
+                    taskElement.style.transition = 'all 0.3s ease';
+                    taskElement.style.opacity = '0';
+                    taskElement.style.height = `${taskElement.offsetHeight}px`;
+                    
+                    // Trigger reflow
+                    void taskElement.offsetHeight;
+                    
+                    // Animate collapse
+                    taskElement.style.height = '0';
+                    taskElement.style.margin = '0';
+                    taskElement.style.padding = '0';
+                    
+                    // Remove after animation
+                    setTimeout(() => {
+                        taskElement.remove();
+                        
+                        // Update reminder counts if needed
+                        const reminderSpans = document.querySelectorAll('.reminder-date');
+                        if (reminderSpans.length === 0) {
+                            const emptyState = document.createElement('p');
+                            emptyState.textContent = 'No tasks yet.';
+                            document.getElementById('task-list').appendChild(emptyState);
+                        }
+                    }, 300);
+                } else {
+                    const error = await response.json();
+                    console.error('Delete failed:', error);
+                    this.textContent = 'Error!';
+                    setTimeout(() => {
+                        this.textContent = 'Delete';
+                        this.disabled = false;
+                    }, 1500);
+                }
+            } catch (error) {
+                console.error('Network error:', error);
+                this.textContent = 'Network Error';
+                setTimeout(() => {
+                    this.textContent = 'Delete';
+                    this.disabled = false;
+                }, 1500);
+            }
+        });
+    });
+});
     </script>
 </body>
 </html>
@@ -241,17 +306,23 @@ def dashboard():
  ''', user=user, sortedTasks=sortedTasks, error_msg=error_msg, datetime=datetime)
 
 
-@app.route('/delete_task', methods=['POST'])
-def delete_task():
+@app.route('/delete_task/<int:task_id>', methods=['DELETE'])  # Change to DELETE method
+def delete_task(task_id):
     user = session.get('user')
     if not user:
-        return redirect('/')
+        return {'success': False, 'error': 'Not authenticated'}, 401
 
-    task_id = request.form.get('task_id')
     conn = get_db_connection()
-    conn.execute('DELETE FROM tasks WHERE id = ? AND user_id = ?', (task_id, user['id']))
+    # Verify task belongs to user before deleting
+    result = conn.execute(
+        'DELETE FROM tasks WHERE id = ? AND user_id = ? RETURNING id',
+        (task_id, user['id'])
+    ).fetchone()
     conn.commit()
-    return redirect('/dashboard')
+
+    if result:
+        return {'success': True}, 200
+    return {'success': False, 'error': 'Task not found'}, 404
 
 
 @app.route('/edit_task/<int:task_id>', methods=['GET', 'POST'])
