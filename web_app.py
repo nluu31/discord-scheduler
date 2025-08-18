@@ -197,7 +197,7 @@ def dashboard():
         <strong>{{ task['task'] }}</strong>
         <div class="task-meta">
             <span>Due: {{ datetime.strptime(task['due_date'], '%Y-%m-%d').strftime('%A, %B %d, %Y') }}</span>
-            <span>{{ task['reminders'] }} reminder(s)</span>
+            <span class="reminder-date">{{ task['reminders'] }} reminder(s)</span>
         </div>
     </div>
     <div class="task-actions">
