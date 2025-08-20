@@ -266,6 +266,9 @@ async def on_message(message):
             due_date = datetime.strptime(parts[1].strip(), "%b %d %Y")
             num_reminders = int(parts[2].strip())
 
+            if num_reminders > 10 or num_reminders < 1:
+                raise ValueError("Number of reminders cannot exceed 10 or be less than 1")
+
             today = datetime.today()
             days_left = (due_date - today).days
             interval = days_left / (num_reminders + 1)
@@ -291,6 +294,5 @@ async def on_message(message):
         except Exception as e:
             await message.channel.send(f"Error scheduling task: {e}")
 
-    # Your other commands (!upcoming, !remove) here (no changes)
 
 client.run(TOKEN)

@@ -147,7 +147,8 @@ def dashboard():
             num_reminders = int(reminders_str)
             if num_reminders < 1:
                 raise ValueError("Number of reminders must be at least 1.")
-            # Check due_date format
+            if num_reminders > 10:
+                raise ValueError("Number of reminders must cannot exceed 10.")
             datetime.strptime(due_date, "%b %d %Y")
         except Exception:
             error_msg = "Invalid input. Please check your due date format (e.g., Jul 31 2025) and reminders (positive integer)."
@@ -335,64 +336,121 @@ def edit_task(task_id):
 
     if request.method == 'POST':
         new_task = request.form.get('task')
-        new_due_date = request.form.get('due_date')
+        new_due_date = request.form.get('due_date')  # User input like "Aug 29 2025"
         new_reminders_str = request.form.get('reminders')
 
         error_msg = None
+        db_date_format = None
+        due_date_dt = None
+        
         try:
+            # ✅ VALIDATE FIRST before converting
             new_reminders = int(new_reminders_str)
             if new_reminders < 1:
                 raise ValueError("Reminders must be at least 1.")
-            datetime.strptime(new_due_date, "%b %d %Y")
+            
+            # ✅ Validate date format first
+            due_date_dt = datetime.strptime(new_due_date, "%b %d %Y")
+            
+            # ✅ THEN convert to database format after validation
+            db_date_format = due_date_dt.strftime("%Y-%m-%d")
+            
+            # ✅ Validate date is not in the past
+            today = datetime.today()
+            if due_date_dt < today:
+                raise ValueError("Due date cannot be in the past")
+                
+        except ValueError as e:
+            error_msg = str(e)
         except Exception:
-            error_msg = "Invalid input. Please check your due date format (e.g., Jul 31 2025) and reminders (positive integer)."
+            error_msg = "Invalid date format. Please use format like 'Jul 31 2025'"
+
+        # ✅ If there's any error, show the form again WITHOUT updating database
+        if error_msg:
             task = conn.execute(
                 'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
                 (task_id, user['id'])
             ).fetchone()
             return render_template_string('''
                 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-                <h2>Edit Task</h2>
+                <div class="edit-task-container">
                 <p style="color: red; font-weight: bold;">{{ error_msg }}</p>
                 <form method="POST">
                     <label>Task:</label><br>
-                    <input name="task" value="{{ task['task'] }}" required><br><br>
+                    <input name="task" value="{{ new_task if new_task else task['task'] }}" required><br><br>
                     <label>Due date (e.g., Jul 31 2025):</label><br>
-                    <input name="due_date" value="{{ task['due_date'] }}" required><br><br>
+                    <input name="due_date" value="{{ new_due_date if new_due_date else task['due_date'] }}" required><br><br>
                     <label>Reminders:</label><br>
-                    <input type="number" name="reminders" value="{{ task['reminders'] }}" min="1"><br><br>
+                    <input type="number" name="reminders" value="{{ new_reminders_str if new_reminders_str else task['reminders'] }}" min="1"><br><br>
                     <input type="submit" value="Update Task">
                 </form>
                 <br>
                 <a href="/dashboard">← Back to Dashboard</a>
-            ''', task=task, error_msg=error_msg)
+                </div>
+            ''', task=task, error_msg=error_msg, new_task=new_task, new_due_date=new_due_date, new_reminders_str=new_reminders_str)
 
-        # No error, update task
-        conn.execute(
-            'UPDATE tasks SET task = ?, due_date = ? WHERE id = ? AND user_id = ?',
-            (new_task, new_due_date, task_id, user['id'])
-        )
-        conn.execute('DELETE FROM reminder_dates WHERE task_id = ?', (task_id,))
-
-        # Recalculate reminders
-        due_date_dt = datetime.strptime(new_due_date, "%b %d %Y")
-        today = datetime.today()
-        days_left = (due_date_dt - today).days
-        interval = days_left / (new_reminders + 1) if new_reminders > 0 else 0
-        reminder_dates = []
-        for i in range(1, new_reminders + 1):
-            reminder_day = today + timedelta(days=round(interval * i))
-            reminder_dates.append(reminder_day.strftime("%Y-%m-%d"))
-
-        cursor = conn.cursor()
-        for rd in reminder_dates:
-            cursor.execute(
-                'INSERT INTO reminder_dates (task_id, reminder_date) VALUES (?, ?)',
-                (task_id, rd)
+        # ✅ ONLY update database if validation passes
+        try:
+            # Start transaction
+            conn.execute('BEGIN TRANSACTION')
+            
+            # Update task - use the converted database format
+            conn.execute(
+                'UPDATE tasks SET task = ?, due_date = ? WHERE id = ? AND user_id = ?',
+                (new_task, db_date_format, task_id, user['id'])
             )
-        conn.commit()
+            
+            # Delete old reminders
+            conn.execute('DELETE FROM reminder_dates WHERE task_id = ?', (task_id,))
+
+            # Recalculate and insert new reminders
+            today = datetime.today()
+            days_left = (due_date_dt - today).days
+            interval = days_left / (new_reminders + 1) if new_reminders > 0 else 0
+            reminder_dates = []
+            
+            for i in range(1, new_reminders + 1):
+                reminder_day = today + timedelta(days=round(interval * i))
+                reminder_dates.append(reminder_day.strftime("%Y-%m-%d"))
+
+            for rd in reminder_dates:
+                conn.execute(
+                    'INSERT INTO reminder_dates (task_id, reminder_date) VALUES (?, ?)',
+                    (task_id, rd)
+                )
+            
+            # Commit only if everything succeeds
+            conn.commit()
+            
+        except Exception as e:
+            # Rollback if any database operation fails
+            conn.rollback()
+            error_msg = f"Database error: {str(e)}"
+            task = conn.execute(
+                'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
+                (task_id, user['id'])
+            ).fetchone()
+            return render_template_string('''
+                <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+                <div class="edit-task-container">
+                <p style="color: red; font-weight: bold;">{{ error_msg }}</p>
+                <form method="POST">
+                    <label>Task:</label><br>
+                    <input name="task" value="{{ new_task if new_task else task['task'] }}" required><br><br>
+                    <label>Due date (e.g., Jul 31 2025):</label><br>
+                    <input name="due_date" value="{{ new_due_date if new_due_date else task['due_date'] }}" required><br><br>
+                    <label>Reminders:</label><br>
+                    <input type="number" name="reminders" value="{{ new_reminders_str if new_reminders_str else task['reminders'] }}" min="1"><br><br>
+                    <input type="submit" value="Update Task">
+                </form>
+                <br>
+                <a href="/dashboard">← Back to Dashboard</a>
+                </div>
+            ''', task=task, error_msg=error_msg, new_task=new_task, new_due_date=new_due_date, new_reminders_str=new_reminders_str)
+
         return redirect('/dashboard')
 
+    # GET request - show form with current values
     task = conn.execute(
         'SELECT * FROM tasks WHERE id = ? AND user_id = ?',
         (task_id, user['id'])
@@ -401,22 +459,31 @@ def edit_task(task_id):
     if not task:
         return "Task not found", 404
 
+    # Convert database format to display format for the form
+    display_date = ""
+    try:
+        db_date = datetime.strptime(task['due_date'], "%Y-%m-%d")
+        display_date = db_date.strftime("%b %d %Y")
+    except:
+        display_date = task['due_date']  # Fallback if conversion fails
+
     return render_template_string('''
         <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+        <div class="edit-task-container">
         <h2>Edit Task</h2>
         <form method="POST">
             <label>Task:</label><br>
             <input name="task" value="{{ task['task'] }}" required><br><br>
             <label>Due date (e.g., Jul 31 2025):</label><br>
-            <input name="due_date" value="{{ task['due_date'] }}" required><br><br>
+            <input name="due_date" value="{{ display_date }}" required><br><br>
             <label>Reminders:</label><br>
             <input type="number" name="reminders" value="{{ task['reminders'] if 'reminders' in task.keys() else 1 }}" min="1"><br><br>
             <input type="submit" value="Update Task">
         </form>
         <br>
         <a href="/dashboard">← Back to Dashboard</a>
-    ''', task=task)
-
+        </div>
+    ''', task=task, display_date=display_date)
 
 @app.route('/logout')
 def logout():
