@@ -166,6 +166,11 @@ def dashboard():
     ).fetchall()
 
     sortedTasks = sorted(tasks, key = lambda x : x['due_date'])
+    
+    # Generate bot invite URL with your bot's client ID and required permissions
+    bot_client_id = os.getenv('DISCORD_BOT_CLIENT_ID', os.getenv('DISCORD_CLIENT_ID'))  # Fallback to OAuth client ID if bot ID not set
+    bot_invite_url = f"https://discord.com/api/oauth2/authorize?client_id={bot_client_id}&permissions=2048&scope=bot"
+    
     return render_template_string('''
 <!DOCTYPE html>
 <html>
@@ -174,6 +179,32 @@ def dashboard():
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
+    <!-- Bot Invite Icon -->
+    <div class="bot-invite-icon" onclick="showBotInvitePopup()" title="Enable Discord Notifications"></div>
+
+    <!-- Bot Invite Popup -->
+    <div class="popup-overlay" id="botInvitePopup" onclick="hideBotInvitePopup(event)">
+        <div class="popup-content" onclick="event.stopPropagation()">
+            <div class="warning-icon">⚠️</div>
+            <h2 class="popup-header">Enable Discord Notifications</h2>
+            <div class="popup-text">
+                <p><strong>Want to receive task reminders directly in Discord?</strong></p>
+                <p>To send you notifications, our bot needs to be in a server that you're also in. Here's what you can do:</p>
+                <ul class="feature-list">
+                    <li>✅ Invite the bot to your personal server</li>
+                    <li>✅ Ask a server admin to invite the bot</li>
+                    <li>✅ Join a server that already has the bot</li>
+                </ul>
+                <p><em>Don't worry - this is completely optional! You can still use TaskBoard without Discord notifications.</em></p>
+            </div>
+            <div class="popup-buttons">
+                <a href="{{ bot_invite_url }}" class="invite-btn" target="_blank">
+                    🤖 Invite Bot to Server
+                </a>
+                <button class="close-btn" onclick="hideBotInvitePopup()">Maybe Later</button>
+            </div>
+        </div>
+    </div>
      
     <h1>Please Enter your Tasks:  </h1>
 
@@ -232,6 +263,29 @@ def dashboard():
             btn.textContent = "Show Tasks ▼";
         }
     }
+
+    // Bot Invite Popup Functions
+    function showBotInvitePopup() {
+        const popup = document.getElementById('botInvitePopup');
+        popup.classList.add('show');
+        document.body.style.overflow = 'hidden'; // Prevent background scrolling
+    }
+
+    function hideBotInvitePopup(event) {
+        // Only close if clicking overlay or close button, not the popup content
+        if (!event || event.target === event.currentTarget || event.target.classList.contains('close-btn')) {
+            const popup = document.getElementById('botInvitePopup');
+            popup.classList.remove('show');
+            document.body.style.overflow = ''; // Restore scrolling
+        }
+    }
+
+    // Close popup with Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            hideBotInvitePopup();
+        }
+    });
 
     document.addEventListener('DOMContentLoaded', function() {
     // Handle delete clicks
@@ -304,7 +358,7 @@ def dashboard():
 </body>
 </html>
 
- ''', user=user, sortedTasks=sortedTasks, error_msg=error_msg, datetime=datetime)
+ ''', user=user, sortedTasks=sortedTasks, error_msg=error_msg, datetime=datetime, bot_invite_url=bot_invite_url)
 
 
 @app.route('/delete_task/<int:task_id>', methods=['DELETE'])  # Change to DELETE method
