@@ -5,6 +5,15 @@ import json
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import sqlite3
+import logging
+
+logger = logging.getLogger('scheduler_bot') # Unique name for this component
+handler = logging.FileHandler('bot.log', mode='a') # Append mode
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
 
 DB_FILE = 'tasks.db'
 
@@ -164,10 +173,13 @@ async def process_past_due_tasks(client, cursor, tasks, today_str):
                 await user.send(
                     f"⚠️ Alert: Your task **{task_name}** is due today (or was due on {due_date.strftime('%B %d, %Y')})!"
                 )
+                logger.info(f"Successfully deleted and informed past-due task '{task_name}' to user {user}")
         except Exception as e:
+            logger.warning(f"Failed to send message to user. Past-due task {task_name} was deleted for {user_id}")
             print(f"Failed to process past-due task for {user_id}: {e}")
         cursor.execute("DELETE FROM tasks WHERE id = ?", (task_id,))
         cursor.connection.commit()
+        
 
 async def process_todays_reminders(client, cursor, reminders, today_str):
     for reminder in reminders:
@@ -181,8 +193,9 @@ async def process_todays_reminders(client, cursor, reminders, today_str):
                 await user.send(
                     f"⏰ Reminder: Your task **{task_name}** is coming up! Due on {due_date.strftime('%B %d, %Y')}."
                 )
-            
+            logger.info(f"Successfully deleted and informed reminder for '{task_name}' to user {user}")
         except Exception as e:
+            logger.warning(f"Failed to send reminder to user. Current reminder {reminder} was deleted for {user_id}")
             print(f"Failed to send reminder to {user_id}: {e}")
         cursor.execute(
                 "DELETE FROM reminder_dates WHERE task_id = ? AND reminder_date = ?",
@@ -198,9 +211,10 @@ async def cleanup_past_due_reminders(cursor, reminders_past_due, today_str):
                 (past_due['id'], today_str)
             )
             cursor.connection.commit()
+            logger.info(f"Successfully deleted past-due reminder for '{task_name}' to user {user}")
         except Exception as e:
             print(f"Failed to remove past-due reminder for task {past_due['id']}: {e}")
-
+            logger.warning(f"Failed to send remove past-due remainder for user {task_name}, {user_id}.")
 
 
 @client.event
