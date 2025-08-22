@@ -234,6 +234,7 @@ async def on_message(message):
             (content, str(message.author.id))
         )
         conn.commit()
+        logger.info(f"User {str(message.author.id)} has manually removed task {content}")
         if cursor.rowcount > 0:
             await message.channel.send(f"✅ {content} has been removed.")
         else:
