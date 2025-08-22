@@ -55,6 +55,7 @@ def add_task_with_reminders(user_id, task_name, due_date_str, reminder_dates):
         )
     conn.commit()
     conn.close()
+    logger.info(f"User {user_id} has added task '{task_name}' to their schedule.")
 
 
 def create_tables():
@@ -234,7 +235,7 @@ async def on_message(message):
             (content, str(message.author.id))
         )
         conn.commit()
-        logger.info(f"User {str(message.author.id)} has manually removed task {content}")
+        logger.info(f"User {str(message.author.id)} has manually removed task '{content}'")
         if cursor.rowcount > 0:
             await message.channel.send(f"✅ {content} has been removed.")
         else:
