@@ -212,10 +212,10 @@ async def cleanup_past_due_reminders(cursor, reminders_past_due, today_str):
                 (past_due['id'], today_str)
             )
             cursor.connection.commit()
-            logger.info(f"Successfully deleted past-due reminder for '{task_name}' to user {user}")
+            logger.info(f"Successfully deleted past-due reminder {past_due['id']}")
         except Exception as e:
             print(f"Failed to remove past-due reminder for task {past_due['id']}: {e}")
-            logger.warning(f"Failed to send remove past-due remainder for user {task_name}, {user_id}.")
+            logger.warning(f"Failed to remove past-due remainder {past_due['id']}.")
 
 
 @client.event

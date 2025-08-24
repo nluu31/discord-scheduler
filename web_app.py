@@ -6,11 +6,18 @@ import sqlite3
 from datetime import datetime, timedelta
 
 DB_FILE = "tasks.db"
-
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev_secret_key')
+
+logger = logging.getLogger('scheduler_webapp') # Unique name for this component
+handler = logging.FileHandler('bot.log', mode='a') # Append mode
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.INFO)
+
 
 oauth = OAuth(app)
 discord = oauth.register(
