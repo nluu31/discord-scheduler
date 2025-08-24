@@ -4,6 +4,7 @@ from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 import sqlite3
 from datetime import datetime, timedelta
+import logging
 
 DB_FILE = "tasks.db"
 load_dotenv()
@@ -12,7 +13,7 @@ app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev_secret_key')
 
 logger = logging.getLogger('scheduler_webapp') # Unique name for this component
-handler = logging.FileHandler('bot.log', mode='a') # Append mode
+handler = logging.FileHandler('webapp.log', mode='a') # Append mode
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
 logger.addHandler(handler)
@@ -70,6 +71,7 @@ def init_db():
 def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
     conn = get_db_connection()
     cursor = conn.cursor()
+    user = session.get('user')
 
     # Convert to ISO format before inserting
     due_date = datetime.strptime(due_date_str.strip(), "%b %d %Y")
@@ -94,6 +96,7 @@ def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
             (task_id, reminder_date_str)
         )
     conn.commit()
+    logger.info(f"User '{user['global_name']}' has manually added task '{task_name}' using the website.")
 
 
 @app.route('/')
@@ -381,6 +384,7 @@ def delete_task(task_id):
         (task_id, user['id'])
     ).fetchone()
     conn.commit()
+    logger.info(f"User '{user['global_name']}' has manually deleted task '{task_id}' using the website.")
 
     if result:
         return {'success': True}, 200
@@ -415,11 +419,6 @@ def edit_task(task_id):
             
             # ✅ THEN convert to database format after validation
             db_date_format = due_date_dt.strftime("%Y-%m-%d")
-            
-            # ✅ Validate date is not in the past
-            today = datetime.today()
-            if due_date_dt < today:
-                raise ValueError("Due date cannot be in the past")
                 
         except ValueError as e:
             error_msg = str(e)
@@ -482,6 +481,7 @@ def edit_task(task_id):
             
             # Commit only if everything succeeds
             conn.commit()
+            logger.info(f"User '{user['global_name']}' has manually edited task '{task_id}' using the website.")
             
         except Exception as e:
             # Rollback if any database operation fails
