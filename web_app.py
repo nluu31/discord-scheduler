@@ -6,6 +6,34 @@ import sqlite3
 from datetime import datetime, timedelta
 import logging
 
+
+# Database initialization - add this to both files
+def init_database():
+    conn = sqlite3.connect('tasks.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS tasks
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  title TEXT NOT NULL,
+                  completed INTEGER DEFAULT 0,
+                  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
+    
+    # Add sample data if table is empty
+    c.execute("SELECT COUNT(*) FROM tasks")
+    if c.fetchone()[0] == 0:
+        sample_tasks = [
+            ('Learn Python Deployment', 0),
+            ('Build Discord Bot', 0),
+            ('Deploy to Render', 0)
+        ]
+        c.executemany("INSERT INTO tasks (title, completed) VALUES (?, ?)", sample_tasks)
+    
+    conn.commit()
+    conn.close()
+    print("✅ Database initialized successfully!")
+
+# Call the function
+init_database()
+
 DB_FILE = "tasks.db"
 load_dotenv()
 
@@ -256,7 +284,7 @@ def dashboard():
 
 
     
-    <a href="/logout" class="logout">logout {{ user['username'] }}</a>
+    <a href="/logout" class="logout">logout {{ user['global_name'] }}</a>
 
     <script>
        function toggleTasks() {
