@@ -1,0 +1,5 @@
+2025-08-21 16:42:24,513 - scheduler_bot - INFO - Successfully deleted and informed past-due task 'move in' to user lmaobluu
+2025-08-21 16:42:25,431 - scheduler_bot - INFO - Successfully deleted and informed reminder for 'future' to user igloo728_10982
+2025-08-22 16:11:59,354 - scheduler_bot - INFO - User 339614874021920769 has manually removed task tmrw
+2025-08-24 13:20:57,952 - scheduler_bot - INFO - User 339614874021920769 has added task 'move in' to their schedule.
+2025-08-24 13:21:29,491 - scheduler_bot - INFO - User 339614874021920769 has manually removed task 'move in'

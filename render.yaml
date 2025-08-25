@@ -1,0 +1,29 @@
+# render.yaml
+services:
+  # Web Application Service
+  - type: web
+    name: task-webapp
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python web_app.py
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///tasks.db
+      - key: PYTHON_VERSION
+        value: 3.10.0
+
+  # Discord Bot Service (24/7)
+  - type: web
+    name: task-bot
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: python bot.py
+    envVars:
+      - key: DISCORD_TOKEN
+        sync: false
+      - key: DATABASE_URL
+        value: sqlite:///tasks.db
+      - key: PYTHON_VERSION
+        value: 3.10.0

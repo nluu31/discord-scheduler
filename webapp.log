@@ -1,0 +1,7 @@
+2025-08-24 13:44:25,795 - scheduler_webapp - INFO - User '1347297619063607297' has manually added task 'test' using the website.
+2025-08-24 13:45:22,174 - scheduler_webapp - INFO - User '{'accent_color': None, 'avatar': None, 'avatar_decoration_data': None, 'banner': None, 'banner_color': None, 'clan': None, 'collectibles': None, 'discriminator': '0', 'display_name_styles': None, 'email': 'mrnick731@gmail.com', 'flags': 0, 'global_name': 'winter', 'id': '1347297619063607297', 'locale': 'en-US', 'mfa_enabled': False, 'premium_type': 0, 'primary_guild': None, 'public_flags': 0, 'username': 'igloo728_10982', 'verified': True}' has manually added task 'test' using the website.
+2025-08-24 13:46:48,149 - scheduler_webapp - INFO - User 'winter' has manually added task 'test' using the website.
+2025-08-24 13:47:30,715 - scheduler_webapp - INFO - User 'winter' has manually deleted task '67' using the website.
+2025-08-24 13:47:31,525 - scheduler_webapp - INFO - User 'winter' has manually deleted task '66' using the website.
+2025-08-24 13:47:32,402 - scheduler_webapp - INFO - User 'winter' has manually deleted task '65' using the website.
+2025-08-24 13:48:30,360 - scheduler_webapp - INFO - User 'winter' has manually edited task '44' using the website.
