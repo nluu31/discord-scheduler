@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import sqlite3
 import logging
+import botserver
 
 logger = logging.getLogger('scheduler_bot') # Unique name for this component
 handler = logging.FileHandler('bot.log', mode='a') # Append mode
@@ -40,6 +41,7 @@ def init_database():
 
 # Call the function
 init_database()
+botserver.keep_alive()
 
 
 DB_FILE = 'tasks.db'
