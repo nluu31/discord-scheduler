@@ -8,6 +8,6 @@ app = Flask('')
 def home():
     return "Discord bot ok"
 
- def keep_alive():
+def keep_alive():
     t = Thread(target=run)
     t.start()
