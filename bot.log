@@ -3,3 +3,8 @@
 2025-08-22 16:11:59,354 - scheduler_bot - INFO - User 339614874021920769 has manually removed task tmrw
 2025-08-24 13:20:57,952 - scheduler_bot - INFO - User 339614874021920769 has added task 'move in' to their schedule.
 2025-08-24 13:21:29,491 - scheduler_bot - INFO - User 339614874021920769 has manually removed task 'move in'
+2025-08-26 15:19:33,394 - scheduler_bot - INFO - User 339614874021920769 has added task 'move in' to their schedule.
+2025-08-26 15:19:46,160 - scheduler_bot - INFO - User 339614874021920769 has manually removed task 'move in'
+2025-08-27 14:55:23,264 - scheduler_bot - INFO - Notified reminder for 'move in date' to user igloo728_10982
+2025-08-27 14:56:32,030 - scheduler_bot - INFO - User 339614874021920769 added task 'move in' with reminders ['2025-08-27'].
+2025-08-27 14:56:52,922 - scheduler_bot - INFO - User 339614874021920769 removed task 'move in'

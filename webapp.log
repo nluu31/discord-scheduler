@@ -5,3 +5,7 @@
 2025-08-24 13:47:31,525 - scheduler_webapp - INFO - User 'winter' has manually deleted task '66' using the website.
 2025-08-24 13:47:32,402 - scheduler_webapp - INFO - User 'winter' has manually deleted task '65' using the website.
 2025-08-24 13:48:30,360 - scheduler_webapp - INFO - User 'winter' has manually edited task '44' using the website.
+2025-08-27 15:20:45,596 - scheduler_webapp - INFO - User 'winter' has manually added task 'move out' using the website.
+2025-08-27 15:21:12,289 - scheduler_webapp - INFO - User 'winter' has manually added task 'test one more thing' using the website.
+2025-08-27 15:21:27,642 - scheduler_webapp - INFO - User 'winter' has manually deleted task '3' using the website.
+2025-08-27 15:21:34,970 - scheduler_webapp - INFO - User 'winter' has manually deleted task '58' using the website.
