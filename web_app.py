@@ -1,13 +1,19 @@
 import os
-from flask import Flask, redirect, url_for, session, request, render_template_string, g
+from flask import Flask, redirect, url_for, session, request, render_template_string
 from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
-import psycopg2
-import psycopg2.extras
 from datetime import datetime, timedelta
 import logging
 
-load_dotenv()
+from supabase import create_client
+from dotenv import load_dotenv
+
+load_dotenv()  # Load .env variables first
+
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev_secret_key')
@@ -30,49 +36,20 @@ discord = oauth.register(
     client_kwargs={'scope': 'identify email'},
 )
 
-# Supabase/PostgreSQL connection configuration
-def get_db_connection():
-    if 'db' not in g:
-        conn = psycopg2.connect(os.getenv('DATABASE_URL'))
-        conn.autocommit = False  # We'll handle transactions manually
-        g.db = conn
-    return g.db
-
-@app.teardown_appcontext
-def close_db_connection(exception):
-    db = g.pop('db', None)
-    if db is not None:
-        db.close()
-
 def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Create tasks table with PostgreSQL syntax
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS tasks (
-            id SERIAL PRIMARY KEY,
-            user_id TEXT NOT NULL,
-            task TEXT NOT NULL,
-            due_date DATE NOT NULL
-        );
-    ''')
-    
-    # Create reminder_dates table with proper foreign key
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS reminder_dates (
-            id SERIAL PRIMARY KEY,
-            task_id INTEGER NOT NULL,
-            reminder_date DATE NOT NULL,
-            FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE
-        );
-    ''')
-    
-    conn.commit()
+    """Initialize database tables using Supabase"""
+    try:
+        # Create tasks table - Supabase will handle SERIAL/AUTO_INCREMENT with id
+        supabase.rpc('create_tasks_table_if_not_exists').execute()
+        
+        # Create reminder_dates table
+        supabase.rpc('create_reminder_dates_table_if_not_exists').execute()
+        
+        logger.info("Database tables initialized successfully")
+    except Exception as e:
+        logger.error(f"Database initialization error: {e}")
 
 def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
-    conn = get_db_connection()
-    cursor = conn.cursor()
     user = session.get('user')
 
     try:
@@ -80,32 +57,40 @@ def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
         due_date = datetime.strptime(due_date_str.strip(), "%b %d %Y")
         due_date_iso = due_date.strftime("%Y-%m-%d")
 
-        # Insert task and get the ID
-        cursor.execute(
-            'INSERT INTO tasks (user_id, task, due_date) VALUES (%s, %s, %s) RETURNING id',
-            (user_id, task_name, due_date_iso)
-        )
-        task_id = cursor.fetchone()[0]
+        # Insert task using Supabase
+        task_result = supabase.table('tasks').insert({
+            'user_id': user_id,
+            'task': task_name,
+            'due_date': due_date_iso
+        }).execute()
+
+        if not task_result.data:
+            raise Exception("Failed to insert task")
+        
+        task_id = task_result.data[0]['id']
 
         # Calculate reminder dates
         today = datetime.today()
         days_left = (due_date - today).days
         interval = days_left / (num_reminders + 1) if num_reminders > 0 else 0
 
-        # Insert reminder dates
+        # Prepare reminder dates for batch insert
+        reminder_dates = []
         for i in range(1, num_reminders + 1):
             reminder_day = today + timedelta(days=round(interval * i))
             reminder_date_str = reminder_day.strftime("%Y-%m-%d")
-            cursor.execute(
-                'INSERT INTO reminder_dates (task_id, reminder_date) VALUES (%s, %s)',
-                (task_id, reminder_date_str)
-            )
+            reminder_dates.append({
+                'task_id': task_id,
+                'reminder_date': reminder_date_str
+            })
+
+        # Batch insert reminder dates
+        if reminder_dates:
+            supabase.table('reminder_dates').insert(reminder_dates).execute()
         
-        conn.commit()
         logger.info(f"User '{user['global_name']}' has manually added task '{task_name}' using the website.")
     
     except Exception as e:
-        conn.rollback()
         logger.error(f"Error adding task: {e}")
         raise
 
@@ -174,20 +159,24 @@ def dashboard():
                 error_msg = "Failed to add task. Please try again."
                 logger.error(f"Task addition failed: {e}")
 
-    # Fetch tasks with reminder count
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    
-    cursor.execute('''
-        SELECT t.id, t.task, t.due_date, COUNT(r.id) AS reminders 
-        FROM tasks t 
-        LEFT JOIN reminder_dates r ON t.id = r.task_id 
-        WHERE t.user_id = %s 
-        GROUP BY t.id, t.task, t.due_date 
-        ORDER BY t.due_date
-    ''', (user_id,))
-    
-    tasks = cursor.fetchall()
+    # Fetch tasks with reminder count using Supabase
+    try:
+        # Get tasks for user
+        tasks_result = supabase.table('tasks').select('*').eq('user_id', user_id).order('due_date').execute()
+        
+        tasks_with_reminders = []
+        for task in tasks_result.data:
+            # Get reminder count for each task
+            reminders_result = supabase.table('reminder_dates').select('id').eq('task_id', task['id']).execute()
+            reminder_count = len(reminders_result.data)
+            
+            task['reminders'] = reminder_count
+            tasks_with_reminders.append(task)
+        
+        tasks = tasks_with_reminders
+    except Exception as e:
+        logger.error(f"Error fetching tasks: {e}")
+        tasks = []
     
     # Generate bot invite URL
     bot_client_id = os.getenv('DISCORD_BOT_CLIENT_ID', os.getenv('DISCORD_CLIENT_ID'))
@@ -250,7 +239,7 @@ def dashboard():
                     <div class="task-content">
                         <strong>{{ task['task'] }}</strong>
                         <div class="task-meta">
-                            <span>Due: {{ task['due_date'].strftime('%A, %B %d, %Y') if task['due_date'].__class__.__name__ == 'date' else datetime.strptime(task['due_date'], '%Y-%m-%d').strftime('%A, %B %d, %Y') }}</span>
+                            <span>Due: {{ format_date(task['due_date']) }}</span>
                             <span class="reminder-date">{{ task['reminders'] }} reminder(s)</span>
                         </div>
                     </div>
@@ -369,34 +358,25 @@ def dashboard():
     </script>
 </body>
 </html>
-    ''', user=user, tasks=tasks, error_msg=error_msg, datetime=datetime, bot_invite_url=bot_invite_url)
+    ''', user=user, tasks=tasks, error_msg=error_msg, format_date=format_date, bot_invite_url=bot_invite_url)
 
 @app.route('/delete_task/<int:task_id>', methods=['DELETE'])
 def delete_task(task_id):
     user = session.get('user')
     if not user:
         return {'success': False, 'error': 'Not authenticated'}, 401
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
     
     try:
-        # Verify task belongs to user before deleting
-        cursor.execute(
-            'DELETE FROM tasks WHERE id = %s AND user_id = %s RETURNING id',
-            (task_id, user['id'])
-        )
-        result = cursor.fetchone()
-        conn.commit()
+        # Delete task using Supabase (reminder_dates will be deleted via CASCADE)
+        result = supabase.table('tasks').delete().eq('id', task_id).eq('user_id', user['id']).execute()
         
-        if result:
+        if result.data:
             logger.info(f"User '{user['global_name']}' has manually deleted task '{task_id}' using the website.")
             return {'success': True}, 200
         else:
             return {'success': False, 'error': 'Task not found'}, 404
             
     except Exception as e:
-        conn.rollback()
         logger.error(f"Error deleting task {task_id}: {e}")
         return {'success': False, 'error': 'Database error'}, 500
 
@@ -405,9 +385,6 @@ def edit_task(task_id):
     user = session.get('user')
     if not user:
         return redirect('/')
-
-    conn = get_db_connection()
-    cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
 
     if request.method == 'POST':
         new_task = request.form.get('task')
@@ -432,11 +409,10 @@ def edit_task(task_id):
             error_msg = "Invalid date format. Please use format like 'Jul 31 2025'"
 
         if error_msg:
-            cursor.execute(
-                'SELECT * FROM tasks WHERE id = %s AND user_id = %s',
-                (task_id, user['id'])
-            )
-            task = cursor.fetchone()
+            # Get task for error display
+            task_result = supabase.table('tasks').select('*').eq('id', task_id).eq('user_id', user['id']).execute()
+            task = task_result.data[0] if task_result.data else None
+            
             return render_template_string('''
                 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
                 <div class="edit-task-container">
@@ -455,41 +431,41 @@ def edit_task(task_id):
                 </div>
             ''', task=task, error_msg=error_msg, new_task=new_task, new_due_date=new_due_date, new_reminders_str=new_reminders_str)
 
-        # Update database
+        # Update database using Supabase
         try:
-            cursor.execute('BEGIN')
+            # Update task
+            supabase.table('tasks').update({
+                'task': new_task,
+                'due_date': db_date_format
+            }).eq('id', task_id).eq('user_id', user['id']).execute()
             
-            cursor.execute(
-                'UPDATE tasks SET task = %s, due_date = %s WHERE id = %s AND user_id = %s',
-                (new_task, db_date_format, task_id, user['id'])
-            )
-            
-            cursor.execute('DELETE FROM reminder_dates WHERE task_id = %s', (task_id,))
+            # Delete existing reminders
+            supabase.table('reminder_dates').delete().eq('task_id', task_id).execute()
 
             # Recalculate and insert new reminders
             today = datetime.today()
             days_left = (due_date_dt - today).days
             interval = days_left / (new_reminders + 1) if new_reminders > 0 else 0
             
+            reminder_dates = []
             for i in range(1, new_reminders + 1):
                 reminder_day = today + timedelta(days=round(interval * i))
                 reminder_date_str = reminder_day.strftime("%Y-%m-%d")
-                cursor.execute(
-                    'INSERT INTO reminder_dates (task_id, reminder_date) VALUES (%s, %s)',
-                    (task_id, reminder_date_str)
-                )
+                reminder_dates.append({
+                    'task_id': task_id,
+                    'reminder_date': reminder_date_str
+                })
             
-            conn.commit()
+            if reminder_dates:
+                supabase.table('reminder_dates').insert(reminder_dates).execute()
+            
             logger.info(f"User '{user['global_name']}' has manually edited task '{task_id}' using the website.")
             
         except Exception as e:
-            conn.rollback()
             error_msg = f"Database error: {str(e)}"
-            cursor.execute(
-                'SELECT * FROM tasks WHERE id = %s AND user_id = %s',
-                (task_id, user['id'])
-            )
-            task = cursor.fetchone()
+            task_result = supabase.table('tasks').select('*').eq('id', task_id).eq('user_id', user['id']).execute()
+            task = task_result.data[0] if task_result.data else None
+            
             return render_template_string('''
                 <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
                 <div class="edit-task-container">
@@ -511,25 +487,22 @@ def edit_task(task_id):
         return redirect('/dashboard')
 
     # GET request - show form with current values
-    cursor.execute(
-        'SELECT * FROM tasks WHERE id = %s AND user_id = %s',
-        (task_id, user['id'])
-    )
-    task = cursor.fetchone()
-
-    if not task:
-        return "Task not found", 404
+    try:
+        task_result = supabase.table('tasks').select('*').eq('id', task_id).eq('user_id', user['id']).execute()
+        
+        if not task_result.data:
+            return "Task not found", 404
+        
+        task = task_result.data[0]
+    except Exception as e:
+        logger.error(f"Error fetching task for edit: {e}")
+        return "Error loading task", 500
 
     # Convert database format to display format
     display_date = ""
     try:
-        if hasattr(task['due_date'], 'strftime'):
-            # It's already a date object
-            display_date = task['due_date'].strftime("%b %d %Y")
-        else:
-            # It's a string, parse it first
-            db_date = datetime.strptime(str(task['due_date']), "%Y-%m-%d")
-            display_date = db_date.strftime("%b %d %Y")
+        db_date = datetime.strptime(str(task['due_date']), "%Y-%m-%d")
+        display_date = db_date.strftime("%b %d %Y")
     except:
         display_date = str(task['due_date'])
 
@@ -555,6 +528,14 @@ def edit_task(task_id):
 def logout():
     session.pop('user', None)
     return redirect('/')
+
+def format_date(date_str):
+    """Helper function to format dates for display"""
+    try:
+        date_obj = datetime.strptime(str(date_str), "%Y-%m-%d")
+        return date_obj.strftime('%A, %B %d, %Y')
+    except:
+        return str(date_str)
 
 if __name__ == '__main__':
     with app.app_context():
