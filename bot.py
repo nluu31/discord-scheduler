@@ -15,6 +15,9 @@ SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 # Initialize Supabase client
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+if os.getenv("BOT_ENABLED") != "true":
+    print("Bot is disabled. Set BOT_ENABLED=true to enable.")
+    exit(0)
 # ---------------- Database ---------------- #
 def init_database():
     """Initialize database with sample data if needed"""
@@ -304,5 +307,6 @@ async def on_message(message):
         await message.channel.send("❌ An error occurred while processing your request.")
 
 # ---------------- Run Bot ---------------- #
+
+botserver.keep_alive()
 client.run(TOKEN)
-# botserver.keep_alive()
