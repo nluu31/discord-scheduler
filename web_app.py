@@ -4,9 +4,9 @@ from authlib.integrations.flask_client import OAuth
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 import logging
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from supabase import create_client
-from dotenv import load_dotenv
 
 load_dotenv()  # Load .env variables first
 
@@ -17,6 +17,11 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'dev_secret_key')
+
+# Force HTTPS for OAuth redirects on Railway
+if os.getenv('RAILWAY_ENVIRONMENT'):
+    app.config['PREFERRED_URL_SCHEME'] = 'https'
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
 logger = logging.getLogger('scheduler_webapp')
 handler = logging.FileHandler('webapp.log', mode='a')
@@ -39,15 +44,14 @@ discord = oauth.register(
 def init_db():
     """Initialize database tables using Supabase"""
     try:
-        # Create tasks table - Supabase will handle SERIAL/AUTO_INCREMENT with id
-        supabase.rpc('create_tasks_table_if_not_exists').execute()
-        
-        # Create reminder_dates table
-        supabase.rpc('create_reminder_dates_table_if_not_exists').execute()
-        
-        logger.info("Database tables initialized successfully")
+        # For now, just check if we can connect to Supabase
+        # The tables should already exist in your Supabase dashboard
+        result = supabase.table('tasks').select('id').limit(1).execute()
+        logger.info("Database connection successful")
     except Exception as e:
         logger.error(f"Database initialization error: {e}")
+        # Don't crash the app if DB init fails
+        pass
 
 def add_task_with_reminders(user_id, task_name, due_date_str, num_reminders):
     user = session.get('user')
@@ -117,7 +121,7 @@ def home():
 
 @app.route('/login')
 def login():
-    redirect_uri = url_for('authorize', _external=True)
+    redirect_uri = url_for('authorize', _external=True, _scheme='https' if os.getenv('RAILWAY_ENVIRONMENT') else 'http')
     return discord.authorize_redirect(redirect_uri)
 
 @app.route('/callback')
@@ -540,5 +544,7 @@ def format_date(date_str):
 if __name__ == '__main__':
     with app.app_context():
         init_db()
+    
+    # Railway deployment configuration
     port = int(os.getenv('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
